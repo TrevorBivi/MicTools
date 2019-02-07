@@ -18,6 +18,7 @@ tts_hwnd = None
 voice_meeter_hwnd = None
 morph_vox_hwnd = None
 all_hwnd = {}
+mode = None
 
 def enumHandler(hwnd, lParam):
     
@@ -72,7 +73,6 @@ def send_to_front(hwnd,require_restore=False):
         win32gui.SetForegroundWindow(hwnd)
         win32process.AttachThreadInput(fg, win32api.GetCurrentThreadId(), False)
         '''
-
     
 def perform_search_shortcut():
     '''
@@ -138,35 +138,14 @@ def finish_tts_act():
     press_key(VK_CODE['page_up'])
     press_key(VK_CODE['home'])
     send_to_front(last_hwnd,True)
-    
-
-
-def on_press(key):
-    '''
-    determines if a special action should be completed on a key press event
-    '''
-    print('pressed:',key)
-    if  str(key) == 'Key.left':
-        print('switching to tts input')
-        input_tts_act()
-    elif  str(key) == 'Key.f20':
-        print('switching to audio search imput')
-        search_foob_act()
-    
-    elif str(key) == 'Key.enter':
-        if in_search_menu:
-            print('done audio search')
-            finish_search_foob_act()
-        elif in_tts:
-            print('done tts input')
-            finish_tts_act()
             
-def boot_programs():
+def boot_programs(use_balabolka=True):
     '''
     boots the mic enhancement programs
     '''
-    print("Starting 'Balabolka' text to speech...")
-    os.startfile("C:\\Program Files (x86)\\Balabolka\\balabolka.exe")
+    if use_balabolka:
+        print("Starting 'Balabolka' text to speech...")
+        os.startfile("C:\\Program Files (x86)\\Balabolka\\balabolka.exe")
     
     print("Starting 'Voice Meeter' audio mixer...")
     os.startfile("C:\\Program Files (x86)\\VB\\Voicemeeter\\voicemeeterpro.exe")
@@ -177,12 +156,13 @@ def boot_programs():
     print("Starting 'Foobar2000' audio player...")
     os.startfile("C:\\Program Files (x86)\\foobar2000\\foobar2000.exe")
 
-def close_programs():
+def close_programs(use_balabolka=True):
     '''
     closes the mic enhancement programs
     '''
-    print("Closing 'Balabolka' text to speech...")
-    os.system("taskkill /T /F /IM balabolka.exe")
+    if use_balabolka:
+        print("Closing 'Balabolka' text to speech...")
+        os.system("taskkill /T /F /IM balabolka.exe")
     
     print("Closing 'Voice Meeter' audio mixer...")
     os.system("taskkill /IM voicemeeterpro.exe")
@@ -193,8 +173,6 @@ def close_programs():
     print("Closing 'Foobar2000' audio player...")
     os.system("taskkill /IM foobar2000.exe")
 
-
-
 import ctypes, sys
 
 def is_admin():
@@ -203,11 +181,16 @@ def is_admin():
     except:
         return False
 
+def run(use_balabolka=True):
+    '''
+    initialises programs
 
-def run():
-    close_programs()
+    Keyword Argument:
+    use_balabolka -- whether or not to launch balabolka
+    '''
+    close_programs(use_balabolka)
     time.sleep(3.5)
-    boot_programs()
+    boot_programs(use_balabolka)
     print('\nGathering hwnds...\n--------------------')
     time.sleep(3)
 
@@ -218,7 +201,7 @@ def run():
         print('voice meeter:',voice_meeter_hwnd)
         print('morph vox:',morph_vox_hwnd)
         print('--------------------')	
-        if (foob_hwnd and tts_hwnd and voice_meeter_hwnd and morph_vox_hwnd):
+        if (foob_hwnd and (tts_hwnd or not use_balabolka) and voice_meeter_hwnd and morph_vox_hwnd):
             #win32gui.MoveWindow(foob_hwnd,2515, 279, 570, 1014, 1)
             #win32gui.MoveWindow(tts_hwnd,1678, 261, 2467-1625, 602-270,1)
             #win32gui.MoveWindow(voice_meeter_hwnd,-261, 811, 955, 1751, 1)
@@ -231,12 +214,10 @@ def run():
     else:
         print('DID NOT DETECT ALL PROGRAMS!!!')
 
-    with keyboard.Listener(on_press=on_press) as listener:
-        pass
-        listener.join()
-
 ####################################
+'''
 run()
 send_to_front(morph_vox_hwnd)
 send_to_front(tts_hwnd)
 send_to_front(foob_hwnd)
+'''
