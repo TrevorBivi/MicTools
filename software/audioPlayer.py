@@ -11,7 +11,9 @@ class CD():
         self.name = path.split('\\')[-1]
         self.songs = []
         for songPath in os.listdir(path):
-class audioPlayer():
+           self.songs.append(song(path + '\\' + songPath))
+            
+class AudioPlayer():
     def __init__(self,audioPath):
         self.CDs = []
         for CDPath in os.listdir(audioPath):
@@ -61,6 +63,9 @@ class audioPlayer():
     def getCDCount(self):
         return len(self.CDs)
 
+    def getSelectedCD(self):
+        return self.CDs[self.CDIndex]
+
     def nextSong(self):
         if self.CDIndex != None:
             songList = self.CDs[self.CDIndex].songs
@@ -80,13 +85,15 @@ class audioPlayer():
         self.songIndex = index
         song = self.getSelectedSong()
         if song:
+            print('set media',song.path)
             self.player.set_media( vlc.Media( song.path ) )
 
     def getSongCount(self):
-        if self.CDIndex:
-            return len(self.CDs[self.CDIndex])
+        if self.CDIndex != None:
+            return len(self.CDs[self.CDIndex].songs)
         return None
         
             
-    
-ap = audioPlayer("C:\\Users\\Trevor\\Music\\VR CDS")
+#audioPlayer = AudioPlayer("C:\\Users\\Trevor\\Music\\VR CDS")
+
+ap = AudioPlayer("C:\\Users\\Trevor\\Music\\VR CDS")
