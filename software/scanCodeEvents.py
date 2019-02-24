@@ -31,7 +31,6 @@ class INPUT(ctypes.Structure):
                 ('union', _INPUTunion))
 
 def send_input(*inputs):
-    print('send inp')
     nInputs = len(inputs)
     LPINPUT = INPUT * nInputs
     pInputs = LPINPUT(*inputs)
@@ -44,24 +43,18 @@ KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_SCANCODE = 0x0008
 
 def key_input(code,flags):
-    print(flags)
     kbinp = KEYBDINPUT(0, code, flags, 0,None)
-    print(kbinp.wVk,kbinp.wScan,kbinp.dwFlags,kbinp.time,kbinp.dwExtraInfo)
     inp = INPUT(
         INPUT_KEYBOARD,
         _INPUTunion(ki = kbinp)
         )
-    print(inp.type,inp.union)
-    print('si',send_input(inp))
 
 def key_up(scan_code,extra_flags):
-    if not extra_flags:
-        extra_flags = 0
+    if not extra_flags: extra_flags = 0
     key_input(scan_code, KEYEVENTF_KEYUP | extra_flags) #KEYEVENTF_SCANCODE |
 
 def key_down(scan_code,extra_flags):
-    if not extra_flags:
-        extra_flags = 0
+    if not extra_flags: extra_flags = 0
     key_input(scan_code,extra_flags) #
 
 def key_press(scan_code,press_time=0.01,extra_flags=KEYEVENTF_SCANCODE):
