@@ -39,7 +39,7 @@ def get_pid(proc_name):
     cmd_output = check_output('tasklist /fi "Imagename eq '+ proc_name +'"')
     return int(cmd_output.split()[14])
 
-pid = get_pid('morphVoxPro.exe')
+pid = get_pid('MorphVOXPro.exe')
 
 ###### find the handle of the Minecraft process
 
@@ -48,22 +48,48 @@ PROCESS_ALL_ACCESS = 0x1F0FFF
 processHandle = windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, pid)
 
 ###### find the memory address of the desired MorphVox process module (MorphSupport.dll for information on whether is muted & morphing)
-def print_module_names(process):
+
+Psapi = ctypes.WinDLL('Psapi.dll')
+LIST_MODULES_ALL = 0x03
+
+def EnumProcessModulesEx(hProcess):
+    buf_count = 256
+    while True:
+        buf = (HMODULE * buf_count)()
+        buf_size = sizeof(buf)
+        needed = DWORD()
+        if not Psapi.EnumProcessModulesEx(hProcess, byref(buf), buf_size,
+                                          byref(needed), LIST_MODULES_ALL):
+            raise OSError('EnumProcessModulesEx failed')
+        if buf_size < needed.value:
+            buf_count = needed.value // (buf_size // buf_count)
+            continue
+        count = needed.value // (buf_size // buf_count)
+        return map(HMODULE, buf[:count])
+
+def GetModuleFileNameEx(hProcess, hModule):
+    buf = create_unicode_buffer(MAX_PATH)
+    nSize = DWORD()
+    if not Psapi.GetModuleFileNameExW(hProcess, hModule,
+                                      byref(buf), byref(nSize)):
+        raise OSError('GetModuleFileNameEx failed')
+    return buf.value
+
+def print_module_names(process,sep='\n'):
     '''
     just to help find names
     '''
-    modules = win32process.EnumProcessModules(process)
-    for n,m in enumerate(modules):
-        print(str(n) + '-' + hex(m) +'-' + win32process.GetModuleFileNameEx(process,m ))              
-
+    print( *[hex(int.from_bytes(bytes(a),'little')) + '\t- ' + str(GetModuleFileNameEx(processHandle,a)) + sep for a in list(EnumProcessModulesEx(processHandle))])
+    
+    
 def get_module_addr(process,name):
     '''
     get address of module by name that is a member of process
     '''
-    modules = win32process.EnumProcessModules(process)
+    modules = list(EnumProcessModulesEx(process))
     for m in modules:
-        if name in str(win32process.GetModuleFileNameEx(process,m )):
-            return m
+        if name in str(GetModuleFileNameEx(process,m)):
+            return int.from_bytes(bytes(m),'little')
 
 morph_support_addr = get_module_addr(processHandle,"MorphSupport.dll")
 
@@ -86,8 +112,10 @@ def get_val(process,addr,typ):
         return 0
     return struct.unpack(typ, struct.pack("I", buffer.value)   )[0]
 
+print('ph',processHandle,'msa',morph_support_addr)
+
 def is_muted():
-    val = get_val(processHandle,morph_support_addr +,'q')
+    val = get_val(processHandle,morph_support_addr + 0x79438,'l')
     if val == 0:
         return True
     elif val == 1:
@@ -95,7 +123,7 @@ def is_muted():
     raise errorTypes.MemReadError()
 
 def is_morphing():
-    val = get_val(processHandle,morph_support_addr +,'q')
+    val = get_val(processHandle,morph_support_addr + 0x82458,'l')
     if val == 0:
         return True
     elif val == 1:
