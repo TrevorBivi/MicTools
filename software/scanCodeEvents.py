@@ -37,17 +37,21 @@ def send_input(*inputs):
     cbSize = ctypes.c_int(ctypes.sizeof(INPUT))
     return ctypes.windll.user32.SendInput(nInputs, pInputs, cbSize)
 
+INPUT_MOUSE = 0
 INPUT_KEYBOARD = 1
+IMPUT_HARDWARE = 2
 
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_SCANCODE = 0x0008
 
 def key_input(code,flags):
-    kbinp = KEYBDINPUT(0, code, flags, 0,None)
+    kbinp = KEYBDINPUT(code, code, flags, 0,None)
+    print('cd',code,'fg',flags)
     inp = INPUT(
         INPUT_KEYBOARD,
         _INPUTunion(ki = kbinp)
         )
+    send_input(inp)
 
 def key_up(scan_code,extra_flags):
     if not extra_flags: extra_flags = 0
@@ -61,3 +65,6 @@ def key_press(scan_code,press_time=0.01,extra_flags=KEYEVENTF_SCANCODE):
     key_down(scan_code,extra_flags)
     time.sleep(press_time)
     key_up(scan_code,extra_flags)
+
+#time.sleep(4);key_press(0x49)
+

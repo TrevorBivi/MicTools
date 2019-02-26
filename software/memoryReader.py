@@ -39,13 +39,10 @@ def get_pid(proc_name):
     cmd_output = check_output('tasklist /fi "Imagename eq '+ proc_name +'"')
     return int(cmd_output.split()[14])
 
-pid = get_pid('MorphVOXPro.exe')
-
 ###### find the handle of the Minecraft process
 
 PROCESS_ALL_ACCESS = 0x1F0FFF
 #PROCESS_VM_READ = 0x0010
-processHandle = windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, pid)
 
 ###### find the memory address of the desired MorphVox process module (MorphSupport.dll for information on whether is muted & morphing)
 
@@ -91,8 +88,6 @@ def get_module_addr(process,name):
         if name in str(GetModuleFileNameEx(process,m)):
             return int.from_bytes(bytes(m),'little')
 
-morph_support_addr = get_module_addr(processHandle,"MorphSupport.dll")
-
 ###### find player position x and camera rotation y relative to desired modules
 ReadProcessMemory = windll.kernel32.ReadProcessMemory
 ReadProcessMemory.argtypes = [HANDLE,LPCVOID,LPVOID,ctypes.c_size_t,ctypes.POINTER(ctypes.c_size_t)]
@@ -106,29 +101,11 @@ def get_val(process,addr,typ):
     buffer = c_void_p()
     bufferSize = type_sizes[typ]
     bytesRead = c_size_t()
-    while not ReadProcessMemory(processHandle, addr, byref(buffer), bufferSize, byref(bytesRead)):
+    while not ReadProcessMemory(process, addr, byref(buffer), bufferSize, byref(bytesRead)):
         print ("Failed to read",process,hex(addr),typ)
     if buffer.value == None:
         return 0
     return struct.unpack(typ, struct.pack("I", buffer.value)   )[0]
-
-print('ph',processHandle,'msa',morph_support_addr)
-
-def is_muted():
-    val = get_val(processHandle,morph_support_addr + 0x79438,'l')
-    if val == 0:
-        return True
-    elif val == 1:
-        return False
-    raise errorTypes.MemReadError()
-
-def is_morphing():
-    val = get_val(processHandle,morph_support_addr + 0x82458,'l')
-    if val == 0:
-        return True
-    elif val == 1:
-        return False
-    raise errorTypes.MemReadError()
 
 class THREADENTRY32(Structure):
     _fields_ = [
