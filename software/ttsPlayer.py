@@ -1,4 +1,5 @@
 import subprocess
+import threading
 
 si = subprocess.STARTUPINFO()
 si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
@@ -11,8 +12,14 @@ class Balcon(object):
         self.device = device
 
     def say(self,text,cutoff=False):
-        cmd_inp = self.path +' -s ' + str(self.speed) + ' -v ' + str(self.volume)
-        if self.device:
-            cmp_inp += ' -r ' + device
-        cmd_inp += ' -t "' + text + '"'
-        subprocess.call(cmd_inp, startupinfo=si)
+        def thread_target():
+            cmd_inp = self.path +' -s ' + str(self.speed) + ' -v ' + str(self.volume)
+            if self.device:
+                cmd_inp += ' -r ' + device
+            if cutoff:
+                cmd_inp += ' -k '
+            cmd_inp += ' -t "' + text + '"'
+            subprocess.call(cmd_inp, startupinfo=si)
+
+        thread = threading.Thread(target=thread_target)
+        thread.start()
