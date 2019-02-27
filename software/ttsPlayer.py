@@ -15,7 +15,7 @@ class Balcon(object):
         def thread_target():
             cmd_inp = self.path +' -s ' + str(self.speed) + ' -v ' + str(self.volume)
             if self.device:
-                cmd_inp += ' -r ' + device
+                cmd_inp += ' -r ' + self.device
             if cutoff:
                 cmd_inp += ' -k '
             cmd_inp += ' -t "' + text + '"'
