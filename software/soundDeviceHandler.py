@@ -1,49 +1,45 @@
 import sounddevice as sd
+import time
+from functools import partial
+import threading
 import numpy
 assert numpy
 
 
-class SoundHandler(object):
-
-    @staticmethod
-    def callback(indata, outdata, frames, time, status):
-        if status:
-            print(status)
-        outdata[:] = indata
-    
-    def __init__(input_device,output_device,
-            sample_rate=None,block_size=None,dtype=None,
-            latency=None,channels=None,callback=SoundHandler.callback):
-
-        self.inputDevice = inputDevice
-        self.outputDevice = outputDevice
-        self.stream = sd.Stream(
-
-
-    self,voiceToMic=True, sfxToMic=True,
-        ttsToSpeakers=True, voiceToSpeakers=True, sfxToSpeakers=True,
-        micInputDevice='Microphone (Blue Snowball), Windows WASAPI',
-        micOutputDevice='18 CABLE-A Output (VB-Audio Cable A), Windows WASAPI',
-        speakerDevice='Speakers (High Definition Audio Device), Windows WASAPI'):
-
-        self.        
-
-
-
-def callback(indata, outdata, frames, time, status):
+def unbound_callback(volume,indata, outdata, frames, time, status):
     if status:
         print(status)
-    outdata[:] = indata
+    outdata[:] = indata * volume
 
-try:
+class SoundHandler(object):
+    def start(self):
+        def thread_target():
+            with sd.Stream(device=(self.input_device, self.output_device), samplerate=self.sample_rate,
+                      blocksize=self.block_size, dtype=self.dtype, latency=self.latency,
+                      channels=self.channels, callback=self.callback):
+                while self.streaming:
+                    time.sleep(0.66)
+                    
+        self.streaming = True
+        thread = threading.Thread(target=thread_target)
+        thread.start()
+
+    def stop(self):
+        self.streaming = False
+
+    def __init__(self,input_device=None, output_device=None, sample_rate=None,
+                      block_size=None, dtype=None, latency=None,
+                      channels=None, callback=None,volume=1):
+        self.volume = volume
     
-    with sd.Stream(callback=callback):
-        print('#' * 80)
-        print('press Return to quit')
-        print('#' * 80)
-        input()
+        self.input_device = input_device
+        self.output_device = output_device
+
+        self.sample_rate = sample_rate
+        self.block_size = block_size
+        self.dtype = dtype
         
-except KeyboardInterrupt:
-    print('\nInterrupted by user')
-except Exception as e:
-    print(type(e).__name__ + ': ' + str(e))
+        self.latency = latency
+        self.channels = channels
+        self.callback = unbound_callback if callback else partial(unbound_callback,self.volume)
+    
