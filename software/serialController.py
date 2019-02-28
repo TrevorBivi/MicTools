@@ -1,8 +1,37 @@
 import serial
+from soundDeviceHandler import *
+from audioPlayer import *
+from ttsPlayer import *
 
-from audioPlayer import AudioPlayer
+audioPlayer = AudioPlayer( "C:\\Users\\Trevor\\Music\\VR CDS",
+                          device='CABLE-A Input (VB-Audio Cable A)')
 
-audioPlayer = AudioPlayer("C:\\Users\\Trevor\\Music\\VR CDS")
+ttsPlayer = Balcon(device='CABLE-B Input (VB-Audio Cable B)')
+
+MicToHeadphones = SoundHandler(
+                'Microphone (Rift Audio), MME',
+                'Headphones (Rift Audio), MME')
+
+audioToHeadphones = SoundHandler(
+                'CABLE-A Output (VB-Audio Cable , MME',
+                'Headphones (Rift Audio), MME')
+
+privateAudioToHeadphones = SoundHandler(
+                'CABLE-B Output (VB-Audio Cable , MME',
+                'Headphones (Rift Audio), MME')
+
+audioToOutput = SoundHandler(
+                'CABLE-A Output (VB-Audio Cable , MME',
+                'CABLE Input (VB-Audio Virtual , MME')
+
+micToOutput = SoundHandler(
+                'Microphone (Rift Audio), MME',
+                'CABLE Input (VB-Audio Virtual , MME')
+
+audioToHeadphones.start()
+privateAudioToHeadphones.start()
+audioToOutput.start()
+micToOutput.start()
 
 ser = None
 ### OBJECTS
@@ -35,7 +64,6 @@ class Analog():
         return floatVal
 
     def setVolt(self,volt):
-        print('VOLT',volt)
         self.volt = volt
         if self.changeFunc:
             newVal = self.val
@@ -74,8 +102,8 @@ class TogglePitch():
         self.option = 'reg'
 
     def __call__(self):
-        if analog.selected == 'micPitch':
-            analog.selected = None
+        if analog.mode == 'micPitch':
+            analog.mode = None
         
         if self.option == 'reg':
             self.option = 'low'
@@ -93,7 +121,7 @@ togglePitch = TogglePitch()
 
 def selectPitch():
     togglePitch.option = None # will set to reg pitch if toggle pitch selected
-    analog.selected = 'micPitch'
+    analog.mode = 'micPitch'
     analog.minVal = 0
     analog.maxVal = 2
     mic.setPitch(analog.val)
@@ -105,8 +133,8 @@ def ToggleMicVol():
         self.option = 'norm'
 
     def __call__(self):
-        if analog.selected == 'micVol':
-            analog.selected = None
+        if analog.mode == 'micVol':
+            analog.mode = None
         
         if self.option == 'norm':
             self.option = 'mute'
@@ -119,7 +147,7 @@ def ToggleMicVol():
 toggleMicVol = ToggleMicVol()
 
 def selectMicVol():
-    analog.selected = 'micVol'
+    analog.mode = 'micVol'
     analog.minVal = 0
     analog.maxVal = 4
     mic.setVol(analog.val)
@@ -148,7 +176,7 @@ def selCD():
     return "sel CD " + audioPlayer.getSelectedCD().name
 
 def prevSong():
-    if analog.selected == 'song':
+    if analog.mode == 'song':
         analog.setMode(None)
         
     audioPlayer.prevSong()
@@ -159,7 +187,7 @@ def prevSong():
         return 'no CD'
 
 def nextSong():
-    if analog.selected == 'song':
+    if analog.mode == 'song':
         analog.setMode(None)
         
     audioPlayer.nextSong()
@@ -184,7 +212,7 @@ def selSong():
         return 'no CD'
     
 def maxVol():
-    if analog.selected == 'amp':
+    if analog.mode == 'amp':
         analog.setMode(None)
         
     audioPlayer.setSong(1)
