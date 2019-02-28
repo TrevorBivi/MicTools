@@ -4,7 +4,7 @@ from audioPlayer import *
 from ttsPlayer import *
 
 audioPlayer = AudioPlayer( "C:\\Users\\Trevor\\Music\\VR CDS",
-                          device='CABLE-A Input (VB-Audio Cable A)')
+                          device=b'{49E2F089-8E24-44B0-BE20-3A45F25CC2FA}')
 
 ttsPlayer = Balcon(device='CABLE-B Input (VB-Audio Cable B)')
 

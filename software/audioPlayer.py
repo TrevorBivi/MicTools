@@ -14,15 +14,38 @@ class CD():
            self.songs.append(song(path + '\\' + songPath))
             
 class AudioPlayer():
-    def __init__(self,audioPath):
+    def __init__(self,audioPath, device=None):
         self.CDs = []
         for CDPath in os.listdir(audioPath):
             self.CDs.append( CD(audioPath + '\\' + CDPath) )
         self.CDIndex = None
         self.songIndex = None
         self.volume = 100
-        self.player = vlc.MediaPlayer()
+        self.Instance = vlc.Instance()
+        self.player = self.Instance.media_player_new()
 
+        #self.player = vlc.MediaPlayer()
+        #self.device=device
+        if device:            
+            
+            devices = []
+            mods = self.player.audio_output_device_enum()
+
+            if mods:
+                mod = mods
+                while mod:
+                    mod = mod.contents
+                    devices.append(mod.device)
+                    mod = mod.next
+
+            vlc.libvlc_audio_output_device_list_release(mods)
+
+            # this is the part I change on each run of the code.
+            for d in devices:
+                if bytes(d) == device:
+                    
+                    #print('aud device',bytes(devices[4]))
+                    self.player.audio_output_device_set(None, d) 
     def getSelectedSong(self):
         if self.CDIndex == None or self.songIndex == None:
             return None
@@ -96,4 +119,4 @@ class AudioPlayer():
             
 #audioPlayer = AudioPlayer("C:\\Users\\Trevor\\Music\\VR CDS")
 
-ap = AudioPlayer("C:\\Users\\Trevor\\Music\\VR CDS")
+#ap = AudioPlayer("C:\\Users\\Trevor\\Music\\VR CDS")
