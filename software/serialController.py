@@ -1,291 +1,268 @@
 import serial
+from functools import partial
+
 from soundDeviceHandler import *
+from morphVoxInteractor import *
 from audioPlayer import *
 from ttsPlayer import *
-
-audioPlayer = AudioPlayer( "C:\\Users\\Trevor\\Music\\VR CDS",
-                          device=b'{49E2F089-8E24-44B0-BE20-3A45F25CC2FA}')
-
-ttsPlayer = Balcon(device='CABLE-B Input (VB-Audio Cable B)')
-
-MicToHeadphones = SoundHandler(
-                'Microphone (Rift Audio), MME',
-                'Headphones (Rift Audio), MME')
-
-audioToHeadphones = SoundHandler(
-                'CABLE-A Output (VB-Audio Cable , MME',
-                'Headphones (Rift Audio), MME')
-
-privateAudioToHeadphones = SoundHandler(
-                'CABLE-B Output (VB-Audio Cable , MME',
-                'Headphones (Rift Audio), MME')
-
-audioToOutput = SoundHandler(
-                'CABLE-A Output (VB-Audio Cable , MME',
-                'CABLE Input (VB-Audio Virtual , MME')
-
-micToOutput = SoundHandler(
-                'Microphone (Rift Audio), MME',
-                'CABLE Input (VB-Audio Virtual , MME')
-
-audioToHeadphones.start()
-privateAudioToHeadphones.start()
-audioToOutput.start()
-micToOutput.start()
-
-ser = None
-### OBJECTS
+'''
 class Button():
-    def __init__(self,downFunc=None,upFunc=None,isPressed=False):
+    def __init__(self,down_func=None,upFunc=None,isPressed=False):
         global buttons
         self.isPressed = isPressed
         self.downFunc = downFunc
         self.upFunc = upFunc
-
-buttons = []
-
+'''
 class Analog():
-    def __init__(self, minVolt=0, maxVolt=1024):
-        global analogControllers
-        self.maxVolt = maxVolt
-        self.minVolt = minVolt
+    def __init__(self, min_volt=0, max_volt=1024):
+        self.max_volt = max_volt
+        self.min_volt = min_volt
         self.volt = -1
-        self.minVal = None
-        self.maxVal = None
-        self.changeFunc = None
+        self.min_val = None
+        self.max_val = None
+        self.change_func = None
         self.mode = None
-        self.lastVal = None
+        self.last_val = None
+        self.ser = None
         
     @property
     def val(self):
-        floatVal = ((self.volt - self.minVolt) / self.maxVolt) * (self.maxVal - self.minVal) + self.minVal
-        if isinstance(self.maxVal,int):
-            return round(floatVal)
-        return floatVal
+        float_val = ((self.volt - self.min_volt) / self.max_volt) * (self.max_val - self.min_val) + self.min_val
+        if isinstance(self.max_val,int):
+            return round(float_val)
+        return float_val
 
-    def setVolt(self,volt):
+    def set_volt(self,volt):
         self.volt = volt
-        if self.changeFunc:
-            newVal = self.val
-            if newVal != self.lastVal:
-                lastVal = newVal
-                self.changeFunc(newVal)
+        if self.change_func:
+            new_val = self.val
+            if new_val != self.last_val:
+                self.last_val = new_val
+                self.change_func(new_val)
 
-    def setMode(self,mode, changeFunc=None, minVal = 0, maxVal = 100):
+    def set_mode(self,mode=None, change_func=None, min_val = 0, max_val = 100):
         self.mode = mode
-        self.changeFunc = changeFunc
-        self.minVal = minVal
-        self.maxVal = maxVal
-        self.lastVal = val
+        self.change_func = change_func
+        self.min_val = min_val
+        self.max_val = max_val
+        self.last_val = self.val
 
-analog = Analog()
-
-'''
-class Mic():
-    def __init__(self, device ,volume=1.0, pitchMod=None):
-        self.volume = volume
-        self.defVolume = volume
-        self.pitchMod = pitchMod
-        self.device = device
-
-mic = Mic()
-
-class Speaker():
-    pass
-
-speaker = Speaker()'''
-
-### ACTIONS
-
-class TogglePitch():
-    def __init__(self):
-        self.option = 'reg'
-
-    def __call__(self):
-        if analog.mode == 'micPitch':
-            analog.mode = None
+class SerialController():
+    def __init__(self,ttsPath,ttsDevice,
+                 audioPath,audioPlayerDevice,
+                 micToSelfDevices,audioToSelfDevices,privateAudioToSelfDevices,
+                 audioToOutputDevices,micToOutputDevices):
         
-        if self.option == 'reg':
-            self.option = 'low'
-            mic.setPitch(0.5)
-        elif self.option == 'low':
-            self.option = 'high'
-            mic.setPitch(1.5)
-        else:
-            self.option = 'reg'
-            mic.setPitch(1)
-            
-        return 'pitch ' + str(self.option)[:3]
+        self.analog = Analog()
+        self.ser = None
+        self.mode = None
 
-togglePitch = TogglePitch()
+        self.audioPlayer = AudioPlayer(audioPath,device=audioPlayerDevice)
+        self.ttsPlayer = Balcon(path=ttsPath,device=ttsDevice)
 
-def selectPitch():
-    togglePitch.option = None # will set to reg pitch if toggle pitch selected
-    analog.mode = 'micPitch'
-    analog.minVal = 0
-    analog.maxVal = 2
-    mic.setPitch(analog.val)
-    analog.changeFunc = mic.setPitch
-    return 'sel pitch ' + analog.val
+        self.micToSelf = SoundHandler(*micToSelfDevices)
+        self.audioToSelf = SoundHandler(*audioToSelfDevices)
+        self.privateAudioToSelf = SoundHandler(*privateAudioToSelfDevices)
+        self.audioToOutput = SoundHandler(*audioToOutputDevices)
+        self.micToOutput = SoundHandler(*micToOutputDevices)
+    
+    def start(self,modes,port,baud_rate):
+        self.modes = modes     
+        self.baud_rate = baud_rate
+        self.port = port
+        self.set_mode(0)
 
-def ToggleMicVol():
-    def __init__(self):
-        self.option = 'norm'
-
-    def __call__(self):
-        if analog.mode == 'micVol':
-            analog.mode = None
         
-        if self.option == 'norm':
-            self.option = 'mute'
-            mic.setVol(0)
-        else:
-            self.option = 'norm'
-            mic.setVol(1)
-        return 'vol ' + str(self.option)[:3]
+    def set_mode(self,mode):
+        '''
+        3  5    2    15 16
+        1  4    0    12 14
+        9  8   *6    10*13
+         11           *7
+        '''
+        self.mode = mode
+        group1,group2 = self.modes[mode]
 
-toggleMicVol = ToggleMicVol()
+        self.buttonFuncs = [
+            partial(self.set_mode,1),#0
+            group1[2],
+            partial(self.set_mode,0),#2
+            group1[0],
+            group1[3],         #4
+            group1[1],
+            partial(self.set_mode,2),#6
+            None,#self.repeat(),
+            group1[5],  #8
+            group1[4],
+            group2[4],  #10
+            None,
+            group2[2],  #12
+            group2[5],
+            group2[3],  #14
+            group2[0],
+            group2[1]   #16
+            ]
+        return 'mode ' + str(mode)
 
-def selectMicVol():
-    analog.mode = 'micVol'
-    analog.minVal = 0
-    analog.maxVal = 4
-    mic.setVol(analog.val)
-    toggleMicVol.option = None ## will set to default vol
-    return 'sel vol ' + str(analog.val)[:3]
+    def listen(self):
+        while True:
+            try:
+                if not self.ser:
+                    self.ser = serial.Serial(self.port,self.baud_rate)
+                val = self.ser.readline()
+                print(val)
+                
+                if val[:5] == b'btUp:':
+                    pass
 
-def prevCD():
-    audioPlayer.prevCD()
-    if analog.mode == 'CD':
-        analog.setMode(None)
-    return "CD " + audioPlayer.getSelectedCD().name
+                elif val[:5] == b'btDn:':
+                    #pass
+                    buttonId = int(val[5:-1])
+                    print('tts:',self.buttonFuncs[buttonId](self) )
+                    
+                elif val[:5] == b'AgCh:':
+                    self.analog.set_volt(int(val[5:-1]))
 
-def nextCD():
-    audioPlayer.nextCD()
-    if analog.mode == 'CD':
-        analog.setMode(None)
-    return "CD " + audioPlayer.getSelectedCD().name
+                    
+                    
+                    #print('analog val' + str(val[5:]))
+            except (serial.SerialException, serial.SerialTimeoutException):
+                print("DISCONNECT")
+                self.ser = None
 
-def selCD():
+
+def disable_mode(mode):
+    def real_dec(func):
+        def call(controller):
+            print('check if ',controller,'mode is',mode)
+            if controller.analog.mode == mode:
+                controller.analog.set_mode()
+            return func(controller)
+        return call
+    return real_dec
+
+
+sc = SerialController('..\\balcon\\balcon.exe','CABLE-B Input (VB-Audio Cable B)', 
+                      "C:\\Users\\Trevor\\Music\\VR CDS",b'{49E2F089-8E24-44B0-BE20-3A45F25CC2FA}',
+                      ('Microphone (Rift Audio), MME','Headphones (Rift Audio), MME'),
+                      ('CABLE-A Output (VB-Audio Cable , MME','Headphones (Rift Audio), MME'),
+                      ('CABLE-B Output (VB-Audio Cable , MME','Headphones (Rift Audio), MME'),
+                      ('CABLE-A Output (VB-Audio Cable , MME','CABLE Input (VB-Audio Virtual , MME'),
+                      ('Microphone (Rift Audio), MME','CABLE Input (VB-Audio Virtual , MME')
+                      )
+
+
+modes = []
+
+#########
+# Sound mode
+
+@disable_mode('CD')
+def prevCD(sc):
+    sc.audioPlayer.prevCD()
+    return "CD " + sc.audioPlayer.getSelectedCD().name
+
+@disable_mode('CD')
+def nextCD(sc):
+    sc.audioPlayer.nextCD()
+    return "CD " + sc.audioPlayer.getSelectedCD().name
+
+def selCD(sc):
     def changeCD(val):
-        audioPlayer.setCD(val)
-        print(audioPlayer.getSelectedCD().name)
+        sc.audioPlayer.setCD(val)
+        print('new cd',sc.audioPlayer.getSelectedCD().name)
 
-    analog.setMode('CD',changeCD,maxVal=audioPlayer.getCDCount()-1)
-    audioPlayer.setCD(analog.val)
-    return "sel CD " + audioPlayer.getSelectedCD().name
+    sc.analog.set_mode('CD',changeCD,max_val=sc.audioPlayer.getCDCount()-1)
+    sc.audioPlayer.setCD(sc.analog.val)
+    return "sel CD " + sc.audioPlayer.getSelectedCD().name
 
-def prevSong():
-    if analog.mode == 'song':
-        analog.setMode(None)
-        
-    audioPlayer.prevSong()
-    song = audioPlayer.getSelectedSong()
+@disable_mode('song')
+def prevSong(sc):
+    sc.audioPlayer.prevSong()
+    song = sc.audioPlayer.getSelectedSong()
     if song:
         return 'Song ' + song.name
     else:
         return 'no CD'
 
-def nextSong():
-    if analog.mode == 'song':
-        analog.setMode(None)
-        
-    audioPlayer.nextSong()
-    song = audioPlayer.getSelectedSong()
+@disable_mode('song')
+def nextSong(sc):
+    sc.audioPlayer.nextSong()
+    song = sc.audioPlayer.getSelectedSong()
     if song:
         return 'Song ' + song.name
     else:
         return 'no CD'
 
-def selSong():
+def selSong(sc):
     def changeSong(val):
-        audioPlayer.setSong(val)
-        print(audioPlayer.getSelectedSong().name)
+        sc.audioPlayer.setSong(val)
+        print('song',sc.audioPlayer.getSelectedSong().name)
         
-    if audioPlayer.CDIndex != None:
-        analog.setMode('song',changeSong,maxVal = audioPlayer.getSongCount()-1)
-        audioPlayer.setSong(analog.val)
-        song = audioPlayer.getSelectedSong()
+    if sc.audioPlayer.CDIndex != None:
+        sc.analog.set_mode('song',changeSong,max_val = sc.audioPlayer.getSongCount()-1)
+        sc.audioPlayer.setSong(sc.analog.val)
+        song = sc.audioPlayer.getSelectedSong()
         if song:
             return 'sel song ' + song.name
     else:
         return 'no CD'
-    
-def maxVol():
-    if analog.mode == 'amp':
-        analog.setMode(None)
-        
-    audioPlayer.setSong(1)
+
+@disable_mode('amp')
+def maxAmp(sc):       
+    sc.audioPlayer.setVolume(100)
     return 'amp max'
 
-def selVol():
+@disable_mode('amp')
+def muteAmp(sc):
+    sc.audioPlayer.setVolume(0)
+    return 'amp mute'
+
+def selAmp(sc):
     def changeVol(val):
-        audioPlayer.setVolume(val)
+        sc.audioPlayer.setVolume(val)
         print(str(val))
     
-    analog.setMode('amp',changeVol)
-    audioPlayer.setVolume(analog.val)
-    return 'sel amp ' + str(analog.val)
+    sc.analog.set_mode('amp',changeVol)
+    sc.audioPlayer.setVolume(sc.analog.val)
+    return 'sel amp ' + str(sc.analog.val)
 
-def playSong():
-    audioPlayer.playSong()
+def playSong(sc):
+    sc.audioPlayer.playSong()
     return 'play'
 
-def pauseSong():
-    audioPlayer.pauseSong()
+def pauseSong(sc):
+    sc.audioPlayer.pauseSong()
     return 'pause'
 
-def stopSong():
-    audioPlayer.stopSong()
+def stopSong(sc):
+    sc.audioPlayer.stopSong()
     return 'stop'
 
-buttons = [
-    selSong, 
-    None, #1
-    selCD,
-    None, #3
-    None, 
-    None, #5
-    selVol,
-    stopSong, #7
-    None,
-    None, #9
-    playSong,
-    None, #11
-    nextSong, 
-    pauseSong, #13
-    prevSong, 
-    prevCD, #15
-    nextCD,
-    ]
+modes.append([
+    [playSong,maxAmp,
+     pauseSong,muteAmp,
+     stopSong,selAmp],
+    [nextSong,nextCD,
+     prevSong,prevCD,
+     selSong,selCD]]
+    )
 
-buttons = buttons + [None] * (17-len(buttons))
+########
+# mic
 
-'''
-3  5    2    15 16
-1  4    0    12 14
-9  8   *6    10*13
- 11           *7
-'''
-
-while True:
-    try:
-        if not ser:
-            ser = serial.Serial('COM6',9600)
-        val = ser.readline()
-        print(val)
-        if val[:5] == b'btUp:':
-            print('button #' + str(val[5:-1]) + ' released')
-        elif val[:5] == b'btDn:':
-            print('button #' + str(val[5:-1]) + ' pressed')
-            buttonId = int(val[5:-1])
-            if buttons[buttonId]:
-                print('EXEC: ' + buttons[buttonId]())
-        elif val[:5] == b'AgCh:':
-            analog.setVolt(int(val[5:-1]))
-            #print('analog val' + str(val[5:]))
-            
-    except (serial.SerialException, serial.SerialTimeoutException):
-        print("DISCONNECT")
-        ser = None
+#@disable_
+#def normVol():
     
+#
+#def selectMicVol():
+#    analog.mode = 'micVol'
+#    analog.minVal = 0
+#    analog.maxVal = 4
+#    mic.setVol(analog.val)
+#    toggleMicVol.option = None ## will set to default vol
+#    return 'sel vol ' + str(analog.val)[:3]
+
+
+sc.start( modes,'COM6',9600)
+sc.listen()
