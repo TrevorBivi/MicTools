@@ -372,9 +372,38 @@ modes.append([
      bane_morph,echo_morph]]
     )
 
+########
+# splice
 
+class BoardControls(object):
+    def __init__(self):
+        self.is_previewing = True
+        self.is_pressing_next = False
+        self.is_pressing_prev = False
 
+    def sel_board(sc):
+        
+    @disable_mode('board')
+    def next_board(sc):
+        self.is_pressing_next = True
+        if self.is_pressing_prev:
+            sel_board(sc)
 
+    @disable_mode('board')     
+    def prev_board(sc):
+        self.is_pressing_prev = True
+        if self.is_pressing_next:
+            sel_board(sc)
+        else:
+            
+        
+        
+
+def prev_board(sc):
+
+def toggle_preview(sc):
+
+    
 #@disable_
 #def normVol():
     
