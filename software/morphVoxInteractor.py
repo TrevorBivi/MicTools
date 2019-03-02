@@ -71,7 +71,7 @@ class MorphVox(object):
                 time.sleep(0.025)
                 self.set_morphed(be_morphed,reattempts-1)
             
-    def set_pitch_level(self,morph_level):
+    def set_morph_type(self,morph_level):
         if morph_level in self.morph_keys.keys():
             key_press(self.morph_keys[morph_level])
             self.set_morphed(True)

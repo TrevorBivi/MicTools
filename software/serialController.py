@@ -311,17 +311,17 @@ class TogglePitch():
 
         if self.option == 'norm':
             self.option = 'low'
-            sc.morpher.set_pitch_level(-3)
+            sc.morpher.set_morph_type(-3)
             sc.micToSelf.start()
             
         elif self.option == 'low':
             self.option = 'high'
-            sc.morpher.set_pitch_level(3)
+            sc.morpher.set_morph_type(3)
             sc.micToSelf.start()
 
         else:
             self.option = 'norm'
-            sc.morpher.set_pitch_level(0)
+            sc.morpher.set_morph_type(0)
             sc.micToSelf.stop()
             
         return 'pitch ' + str(self.option)[:3]
@@ -330,20 +330,46 @@ toggle_pitch = TogglePitch().press_func
 
 def sel_pitch(sc):
     def change_pitch(pitch):
-        sc.morpher.set_pitch_level(pitch)
+        sc.morpher.set_morph_type(pitch)
         print(pitch)
     sc.micToSelf.start()
     sc.analog.set_mode('pitch',change_pitch,min_val = -4,max_val=4)
-    sc.morpher.set_pitch_level(sc.analog.val)
+    sc.morpher.set_morph_type(sc.analog.val)
     print('sel pitch',sc.analog.val)
+
+@disable_mode('pitch')
+def fem_morph(sc):
+    sc.morpher.set_morph_type('female')
+    return 'morph female'
+
+@disable_mode('pitch')
+def child_morph(sc):
+    sc.morpher.set_morph_type('child')
+    return 'morph child'
+
+def demon_morph(sc):
+    sc.morpher.set_morph_type('demon')
+    return 'morph demon'
+
+def robot_morph(sc):
+    sc.morpher.set_morph_type('robot')
+    return 'morph robot'
+
+def bane_morph(sc):
+    sc.morpher.set_morph_type('bane')
+    return 'morph bane'
+
+def echo_morph(sc):
+    sc.morpher.set_morph_type('echo')
+    return 'morph echo'
 
 modes.append([
     [norm_vol,norm_pitch,
      mute_vol,toggle_pitch,
      sel_vol,sel_pitch],
-    [None,None,
-     None,None,
-     None,None]]
+    [fem_morph,child_morph,
+     robot_morph,demon_morph,
+     bane_morph,echo_morph]]
     )
 
 

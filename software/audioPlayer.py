@@ -24,6 +24,8 @@ class AudioPlayer():
         self.Instance = vlc.Instance()
         self.player = self.Instance.media_player_new()
 
+        self.board_index = None
+
         #self.player = vlc.MediaPlayer()
         #self.device=device
         if device:            
@@ -45,7 +47,27 @@ class AudioPlayer():
                 if bytes(d) == device:
                     
                     #print('aud device',bytes(devices[4]))
-                    self.player.audio_output_device_set(None, d) 
+                    self.player.audio_output_device_set(None, d)
+
+    def getSelectedBoard(self):
+        if self.board_index:
+            return self.boards[self.board_index]
+
+    def nextBoard(self):
+        if self.board_index >= len(self.boards)-1:
+            self.setBoard(0)
+        else:
+             self.setBoard(self.board_index+1)
+            
+    def prevBoard(self):
+        if self.board_index == 0:
+            self.setBoard(len(self.boards)-1)
+        else:
+            self.setBoard(self.board_index-1)
+
+    def setBoard(self,index):
+        self.board_index = index
+                    
     def getSelectedSong(self):
         if self.CDIndex == None or self.songIndex == None:
             return None
@@ -78,6 +100,12 @@ class AudioPlayer():
         else:
             self.setCD(self.CDIndex - 1)
 
+    def setCDByName(self,name):
+        for cd,index in enumerate(self.CDs):
+            if name == cd.name:
+                self.setCD(index)
+                break
+
     def setCD(self,index):
         self.CDIndex = index
         self.songIndex = None
@@ -103,6 +131,12 @@ class AudioPlayer():
             self.setSong(len(songList) - 1)
         else:
             self.setSong(self.songIndex - 1)
+
+    def setSongByName(self,name):
+        for song, index in enumerate(self.getSelectedCD()):
+            if name == song.name:
+                self.setSong(index)
+                break
 
     def setSong(self,index):
         self.songIndex = index
