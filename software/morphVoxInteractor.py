@@ -9,7 +9,7 @@ from scanCodeEvents import *
 #morph_vox_hwnd = None
 
 class MorphVox(object):
-    def __init__(self):
+    def __init__(self,path="C:\\Program Files (x86)\\Screaming Bee\\MorphVOX Pro\\MorphVOXPro.exe"):
         #global more_vox_hwnd
         
         self.morph_keys={
@@ -71,23 +71,9 @@ class MorphVox(object):
                 time.sleep(0.025)
                 self.set_morphed(be_morphed,reattempts-1)
             
-    def set_morph_level(self,morph_level):
+    def set_pitch_level(self,morph_level):
         if morph_level in self.morph_keys.keys():
             key_press(self.morph_keys[morph_level])
-            self.setMorphed(True)
+            self.set_morphed(True)
         elif not morph_level:
-            self.setMorphed(False)
-
-b = MorphVox()
-time.sleep(4)
-print('muted',b.is_muted())
-b.set_muted(not b.is_muted())
-print('muted',b.is_muted())
-
-time.sleep(4)
-
-print('morphed',b.is_morphed())
-b.set_morphed(not b.is_morphed())
-print('morphed',b.is_morphed())
-
-b.setMorphLevel(-3)
+            self.set_morphed(False)
