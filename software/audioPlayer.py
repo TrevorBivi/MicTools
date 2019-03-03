@@ -15,9 +15,16 @@ class CD():
             
 class AudioPlayer():
     def __init__(self,audioPath, device=None):
+        #store normal playlists
         self.CDs = []
-        for CDPath in os.listdir(audioPath):
-            self.CDs.append( CD(audioPath + '\\' + CDPath) )
+        for CDPath in os.listdir(audioPath + '\\CDs'):
+            self.CDs.append( CD(audioPath + '\\CDs\\' + CDPath) )
+        
+        self.boards = []
+        for CDPath in os.listdir(audioPath + '\\SoundBoards'):
+            self.boards.append( CD(audioPath + '\\SoundBoards\\' + CDPath) )
+        
+        
         self.CDIndex = None
         self.songIndex = None
         self.volume = 100
@@ -50,17 +57,17 @@ class AudioPlayer():
                     self.player.audio_output_device_set(None, d)
 
     def getSelectedBoard(self):
-        if self.board_index:
+        if self.board_index != None:
             return self.boards[self.board_index]
 
     def nextBoard(self):
-        if self.board_index >= len(self.boards)-1:
+        if self.board_index == None or self.board_index >= len(self.boards)-1:
             self.setBoard(0)
         else:
              self.setBoard(self.board_index+1)
             
     def prevBoard(self):
-        if self.board_index == 0:
+        if not self.board_index:
             self.setBoard(len(self.boards)-1)
         else:
             self.setBoard(self.board_index-1)
@@ -145,6 +152,11 @@ class AudioPlayer():
             print('set media',song.path)
             self.player.set_media( vlc.Media( song.path ) )
 
+    def playBoardFile(self,index):
+        song = self.getSelectedBoard().songs[index]
+        self.player.set_media(vlc.Media(song.path))
+        self.playSong()
+        
     def getSongCount(self):
         if self.CDIndex != None:
             return len(self.CDs[self.CDIndex].songs)
