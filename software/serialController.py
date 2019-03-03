@@ -38,10 +38,11 @@ class Analog():
                     alert_info = None
                     if self.last_change_alert_val and change_alert_val != self.last_change_alert_val:
                         alert_info = new_val
-                    self.change_func(new_val,alert_info)
                     self.last_change_alert_val = change_alert_val
+                    return self.change_func(new_val,alert_info)
                 else:
-                    self.change_func(new_val)
+                    return self.change_func(new_val)
+                    
 
     def set_mode(self,mode=None, change_func=None, min_val = 0, max_val = 100,change_alert_freq=None):
         self.mode = mode
@@ -82,7 +83,7 @@ def set_mode(mode,self):
         group2[0],
         group2[1]   #16
         ]
-    return 'mode ' + str(mode)
+    return 'mode ' + str(mode), 'mode'
 
 
 
@@ -92,7 +93,8 @@ class SerialController():
                  micToSelfDevices,audioToSelfDevices,privateAudioToSelfDevices,
                  audioToOutputDevices,micToOutputDevices,
                  morphVoxPath="C:\\Program Files (x86)\\Screaming Bee\\MorphVOX Pro\\MorphVOXPro.exe",
-                 self_volume = 0.33):
+                 self_output_volume = 0.15,
+                self_private_volume = 0.33):
         
         self.analog = Analog()
         self.ser = None
@@ -103,10 +105,11 @@ class SerialController():
         self.ttsPlayer = Balcon(path=ttsPath,device=ttsDevice)
         self.morpher = MorphVox(path=morphVoxPath)
 
-        self.self_volume = self_volume
-        self.micToSelf = SoundHandler(*micToSelfDevices,volume=self_volume)
-        self.audioToSelf = SoundHandler(*audioToSelfDevices,volume=self_volume)
-        self.privateAudioToSelf = SoundHandler(*privateAudioToSelfDevices,volume=self_volume)
+        self.self_output_volume = self_output_volume
+        self.self_private_volume = self_private_volume
+        self.micToSelf = SoundHandler(*micToSelfDevices,volume=self_output_volume)
+        self.audioToSelf = SoundHandler(*audioToSelfDevices,volume=self_output_volume)
+        self.privateAudioToSelf = SoundHandler(*privateAudioToSelfDevices,volume=self_private_volume)
         self.audioToOutput = SoundHandler(*audioToOutputDevices)
         self.micToOutput = SoundHandler(*micToOutputDevices)
         
@@ -152,8 +155,9 @@ class SerialController():
                             self.ttsPlayer.add_narration(*ret_inf)
                     
                 elif val[:5] == b'AgCh:':
-                    self.analog.set_volt(int(val[5:-1]))
-
+                    ret_inf = self.analog.set_volt(int(val[5:-1]))
+                    if ret_inf:
+                        self.ttsPlayer.add_narration(*ret_inf)
                     
                     
                     #print('analog val' + str(val[5:]))
@@ -187,28 +191,28 @@ def disable_mode(mode):
 @disable_mode('CD')
 def prevCD(sc):
     sc.audioPlayer.prevCD()
-    return "CD " + sc.audioPlayer.getSelectedCD().name,'cd'
+    return sc.audioPlayer.getSelectedCD().name + ' cd','cd'
 
 @disable_mode('CD')
 def nextCD(sc):
     sc.audioPlayer.nextCD()
-    return "CD " + sc.audioPlayer.getSelectedCD().name,'cd'
+    return sc.audioPlayer.getSelectedCD().name + ' cd','cd'
 
 def selCD(sc):
     def changeCD(val):
         sc.audioPlayer.setCD(val)
-        print('new cd',sc.audioPlayer.getSelectedCD().name)
+        return sc.audioPlayer.getSelectedCD().name, 'cd'
 
     sc.analog.set_mode('CD',changeCD,max_val=sc.audioPlayer.getCDCount()-1)
     sc.audioPlayer.setCD(sc.analog.val)
-    return "sel CD " + sc.audioPlayer.getSelectedCD().name, 'cd'
+    return "sel " + sc.audioPlayer.getSelectedCD().name + 'cd', 'cd'
 
 @disable_mode('song')
 def prevSong(sc):
     sc.audioPlayer.prevSong()
     song = sc.audioPlayer.getSelectedSong()
     if song:
-        return 'Song ' + song.name,'song'
+        return song.name + ' Song','song'
     else:
         return 'no CD','song'
 
@@ -217,43 +221,43 @@ def nextSong(sc):
     sc.audioPlayer.nextSong()
     song = sc.audioPlayer.getSelectedSong()
     if song:
-        return 'Song ' + song.name,'song'
+        return song.name + ' Song','song'
     else:
         return 'no CD','song'
 
 def selSong(sc):
     def changeSong(val):
         sc.audioPlayer.setSong(val)
-        print('song',sc.audioPlayer.getSelectedSong().name)
+        return sc.audioPlayer.getSelectedSong().name,'song'
         
     if sc.audioPlayer.CDIndex != None:
         sc.analog.set_mode('song',changeSong,max_val = sc.audioPlayer.getSongCount()-1)
         sc.audioPlayer.setSong(sc.analog.val)
         song = sc.audioPlayer.getSelectedSong()
         if song:
-            return 'sel song ' + song.name,'song'
+            return 'sel ' + song.name + ' song','song'
     else:
         return 'no CD','song'
 
 @disable_mode('amp')
 def maxAmp(sc):       
     sc.audioPlayer.setVolume(100)
-    return 'amp max', 'amp'
+    return 'max amp', 'amp'
 
 @disable_mode('amp')
 def muteAmp(sc):
     sc.audioPlayer.setVolume(0)
-    return 'amp mute', 'amp'
+    return 'mute amp', 'amp'
 
 def selAmp(sc):
     def change_amp(val,alert_info):
         sc.audioPlayer.setVolume(val)
         if alert_info != None:
-            print( round(alert_info/10)*10 )
+            return str(round(alert_info/10)*10), 'amp'
     
     sc.analog.set_mode('amp',change_amp,change_alert_freq=10)
     sc.audioPlayer.setVolume(sc.analog.val)
-    return 'sel amp ' + str(sc.analog.val), 'amp'
+    return 'sel ' + str(sc.analog.val) + ' amp', 'amp'
 
 def playSong(sc):
     sc.audioPlayer.playSong()
@@ -284,31 +288,32 @@ modes.append([
 def mute_vol(sc):
     sc.micToOutput.volume = 0
     sc.micToSelf.volume = 0
-    return ('vol mute'),'vol'
+    return 'mute vol','vol'
 
 @disable_mode('vol')
 def norm_vol(sc):
-    sc.micToOutput.volume = 100
-    sc.micToSelf.volume = 100 * sc.self_volume
-    return ('vol norm'),'vol'
+    sc.micToOutput.volume = 1
+    sc.micToSelf.volume = 1 * sc.self_output_volume
+    return 'norm vol','vol'
 
 def sel_vol(sc):
     def changeVol(val,alert_info):
-        sc.micToOutput.setVolume(val)
-        sc.micToSelf.setVolume(val) * sc.self_volume
+        sc.micToOutput.volume = val
+        sc.micToSelf.volume =  val * sc.self_output_volume
         if alert_info != None:
-            print( round(alert_info/10)*10 )
+            return str(int(val*20)*5), 'vol'
     
-    sc.analog.set_mode('vol',changeVol,change_alert_freq=10,max_val=3.0)
-    sc.audioPlayer.setVolume(sc.analog.val)
-    return 'sel vol ' + str(sc.analog.val), 'vol'
+    sc.analog.set_mode('vol',changeVol,change_alert_freq=0.3333,max_val=5.0)
+    sc.micToOutput.volume = sc.analog.val
+    sc.micToSelf.volume =  sc.analog.val * sc.self_output_volume
+    return 'sel ' + str(int(sc.analog.val*20)*5) + ' vol', 'vol'
 
 
 @disable_mode('pitch')
 def norm_pitch(sc):
     sc.morpher.set_morphed(False)
     sc.micToSelf.stop()
-    return 'morph norm', 'morph type'
+    return 'norm morph', 'morph type'
 
 class TogglePitch():
     def __init__(self):
@@ -334,44 +339,48 @@ class TogglePitch():
             sc.morpher.set_morph_type(0)
             sc.micToSelf.stop()
             
-        return 'pitch ' + str(self.option), 'morph type'
+        return str(self.option) + 'pitch', 'morph type'
 
 toggle_pitch = TogglePitch().press_func
 
 def sel_pitch(sc):
     def change_pitch(pitch):
         sc.morpher.set_morph_type(pitch)
-        print(pitch)
+        return str(pitch),'morph type'
     sc.micToSelf.start()
-    sc.analog.set_mode('pitch',change_pitch,min_val = -4,max_val=4)
+    sc.analog.set_mode('pitch',change_pitch,min_val = -3,max_val=3)
     sc.morpher.set_morph_type(sc.analog.val)
-    print('sel pitch',sc.analog.val)
+    return 'sel ' + str(sc.analog.val) + ' pitch','morph type'
 
 @disable_mode('pitch')
 def fem_morph(sc):
     sc.morpher.set_morph_type('female')
-    return 'morph female', 'morph type'
+    return 'female morph', 'morph type'
 
 @disable_mode('pitch')
 def child_morph(sc):
     sc.morpher.set_morph_type('child')
-    return 'morph female', 'morph type'
+    return 'child morph', 'morph type'
 
+@disable_mode('pitch')
 def demon_morph(sc):
     sc.morpher.set_morph_type('demon')
-    return 'morph demon', 'morph type'
+    return 'demon morph', 'morph type'
 
+@disable_mode('pitch')
 def robot_morph(sc):
     sc.morpher.set_morph_type('robot')
-    return 'morph robot', 'morph type'
+    return 'robot morph', 'morph type'
 
-def bane_morph(sc):
-    sc.morpher.set_morph_type('bane')
-    return 'morph bane', 'morph type'
+@disable_mode('pitch')
+def wtf_morph(sc):
+    sc.morpher.set_morph_type('wtf')
+    return 'wtf morph', 'morph type'
 
+@disable_mode('pitch')
 def echo_morph(sc):
     sc.morpher.set_morph_type('echo')
-    return 'morph echo', 'morph type'
+    return 'echo morph', 'morph type'
 
 modes.append([
     [norm_vol,norm_pitch,
@@ -379,7 +388,7 @@ modes.append([
      sel_vol,sel_pitch],
     [fem_morph,child_morph,
      robot_morph,demon_morph,
-     bane_morph,echo_morph]]
+     wtf_morph,echo_morph]]
     )
 
 ########
@@ -388,9 +397,9 @@ modes.append([
 def sel_board(self,sc):
     def change_board(board_index):
         sc.audioPlayer.setBoard(board_index)
-        print(sc.audioPlayer.getSelectedBoard().name)
+        return sc.audioPlayer.getSelectedBoard().name,'board'
     sc.analog.set_mode('board',change_board,max_val = len(sc.audioPlayer.boards)-1)
-    'sel board ' + sc.audioPlayer.getSelectedBoard().name, 'board'
+    'sel ' + sc.audioPlayer.getSelectedBoard().name + ' board', 'board'
     
 @disable_mode('board')
 def next_board(sc):
@@ -398,7 +407,7 @@ def next_board(sc):
         sel_board(sc)
     else:
         sc.audioPlayer.nextBoard()
-        return 'board ' + sc.audioPlayer.getSelectedBoard().name, 'board'
+        return sc.audioPlayer.getSelectedBoard().name + ' board', 'board'
 
 @disable_mode('board')     
 def prev_board(sc):
@@ -406,7 +415,7 @@ def prev_board(sc):
         sel_board(sc)
     else:
         sc.audioPlayer.prevBoard()
-        'board ' + sc.audioPlayer.getSelectedBoard().name, 'board'
+        sc.audioPlayer.getSelectedBoard().name + ' board', 'board'
 
 class PreviewHandler(object):
     def __init__(self):
@@ -416,9 +425,9 @@ class PreviewHandler(object):
         self.is_previewing = not self.is_previewing
         if self.is_previewing:
             sc.audioPlayer.stopSong()
-            return 'board preview','board toggle'
+            return 'preview board','board toggle'
         else:
-            return 'board live','board toggle'
+            return 'live board','board toggle'
 
     def play_board_button(self,index,sc):
         board = sc.audioPlayer.getSelectedBoard()

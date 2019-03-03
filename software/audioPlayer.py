@@ -76,7 +76,8 @@ class AudioPlayer():
         self.board_index = index
                     
     def getSelectedSong(self):
-        if self.CDIndex == None or self.songIndex == None:
+        if self.CDIndex == None or self.songIndex == None or \
+           not 0 <= self.CDIndex < len(self.CDs) or not 0 <= self.songIndex < len(self.getSelectedCD().songs):
             return None
         CD = self.CDs[self.CDIndex]
         song = CD.songs[self.songIndex]
@@ -102,7 +103,7 @@ class AudioPlayer():
             self.setCD(self.CDIndex + 1)
 
     def prevCD(self):
-        if self.CDIndex == None or self.CDIndex == 0:
+        if not self.CDIndex:
             self.setCD(len(self.CDs) - 1)
         else:
             self.setCD(self.CDIndex - 1)
@@ -133,11 +134,12 @@ class AudioPlayer():
                 self.setSong(self.songIndex + 1)
 
     def prevSong(self):
-        if self.songIndex == None or self.songIndex == 0:
-            songList = self.CDs[self.CDIndex].songs
-            self.setSong(len(songList) - 1)
-        else:
-            self.setSong(self.songIndex - 1)
+        if self.CDIndex != None:
+            if not self.songIndex:
+                songList = self.getSelectedCD().songs
+                self.setSong(len(songList) - 1)
+            else:
+                self.setSong(self.songIndex - 1)
 
     def setSongByName(self,name):
         for song, index in enumerate(self.getSelectedCD()):

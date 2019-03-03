@@ -13,18 +13,26 @@ class MorphVox(object):
         #global more_vox_hwnd
         
         self.morph_keys={
-            -4:0x4f,
-            -3:0x50,
-            -2:0x51,
-            -1:0x4b,
-            1:0x4c,
-            2:0x4d,
-            3:0x47,
-            4:0x48,
+            -3:0x4f,
+            -2:0x50,
+            -1:0x51,
+
+            1:0x4b,
+            2:0x4c,
+            3:0x4d,
+            
+            'female':0x47,
+            'child':0x48,
+            'robot':0x49,
+
+            'demon':0x4E,
+            'echo':0x4A,
+            'wtf':0x53
             }
 
-        self.toggle_morph_key = 0x49
-        self.toggle_mute_key = 0x52
+        self.toggle_morph_key = None
+
+        self.toggle_morph_key = 0x52
         
         #time.sleep(4)
         #morph_vox_hwnd = win32gui.FindWindow(None,"MorphVOX Pro")
