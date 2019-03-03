@@ -6,6 +6,13 @@ from morphVoxInteractor import *
 from audioPlayer import *
 from ttsPlayer import *
 
+class Narration():
+    def __init__(self,text,skip, repeat):
+        self.text = text
+        self.skip = skip
+        self.repeat = repeat
+        self.playing = False
+
 class Analog():
     def __init__(self, min_volt=0, max_volt=1024):
         self.max_volt = max_volt
@@ -61,18 +68,28 @@ def set_mode(mode,self):
     9  8   *6    10*13
      11           *7
     '''
+    if self.button_states[0] and self.button_states[2] and self.button_state[6]:
+        mode = 6
+    elif self.button_states[0] and self.button_states[2]:
+        mode = 3
+    elif self.button_states[2] and self.button_states[6]:
+        mode = 4
+    elif self.button_states[0] and self.button_states[6]:
+        mode = 5
+    
+    
     self.mode = mode
-    group1,group2 = self.modes[mode]
+    group1,group2,name = self.modes[mode]
     
     self.buttonFuncs = [
-        partial(set_mode,1),#0
+        partial(set_mode,0),#0
         group1[2],
-        partial(set_mode,0),#2
+        partial(set_mode,1),#2
         group1[0],
         group1[3],         #4
         group1[1],
         partial(set_mode,2),#6
-        None,#self.repeat(),
+        SerialController.repeat_narration,#self.repeat(),
         group1[5],  #8
         group1[4],
         group2[4],  #10
@@ -83,7 +100,7 @@ def set_mode(mode,self):
         group2[0],
         group2[1]   #16
         ]
-    return 'mode ' + str(mode), 'mode'
+    return voice + ' mode', 'mode'
 
 
 
@@ -93,8 +110,9 @@ class SerialController():
                  micToSelfDevices,audioToSelfDevices,privateAudioToSelfDevices,
                  audioToOutputDevices,micToOutputDevices,
                  morphVoxPath="C:\\Program Files (x86)\\Screaming Bee\\MorphVOX Pro\\MorphVOXPro.exe",
-                 self_output_volume = 0.15,
-                self_private_volume = 0.33):
+                 self_audio_volume = 0.15
+                 self_mic_volume = 0.15,
+                 self_private_volume = 0.33):
         
         self.analog = Analog()
         self.ser = None
@@ -105,10 +123,11 @@ class SerialController():
         self.ttsPlayer = Balcon(path=ttsPath,device=ttsDevice)
         self.morpher = MorphVox(path=morphVoxPath)
 
-        self.self_output_volume = self_output_volume
+        self.self_audio_volume = self_audio_volume
+        self.self_mic_volume = self_mic_volume
         self.self_private_volume = self_private_volume
-        self.micToSelf = SoundHandler(*micToSelfDevices,volume=self_output_volume)
-        self.audioToSelf = SoundHandler(*audioToSelfDevices,volume=self_output_volume)
+        self.micToSelf = SoundHandler(*micToSelfDevices,volume=self_mic_volume)
+        self.audioToSelf = SoundHandler(*audioToSelfDevices,volume=self_audio_volume)
         self.privateAudioToSelf = SoundHandler(*privateAudioToSelfDevices,volume=self_private_volume)
         self.audioToOutput = SoundHandler(*audioToOutputDevices)
         self.micToOutput = SoundHandler(*micToOutputDevices)
@@ -118,9 +137,53 @@ class SerialController():
         self.audioToOutput.start()
         self.micToOutput.start()
 
-        self.narration_buffer = []
-        self.narrations = []
+        self.prev_narrations = []
+        self.buff_narrations = []
+        self.repeated_narrations = []
+
+    def narrate_buffer(self,narration,cutoff=False):
+        def thread_target():
+            if not narration.repeat:
+                self.prev_narrations.append(narration)
+            
+            ttsPlayer.threadless_say(text,cutoff)
+            index = self.buff_narrations.index(narration)
+            if len(self.buff_narrations) > index + 1 and not self.buff_narrations[index+1].playing:
+                self.narrate_buffer(self.buff_narrations[index+1],cutoff=False)
+            self.buff_narrations.remove(narration)
+            
+        narration.playing = True
+        thread = threading.Thread(target=thread_target)
+        thread.start()
+
+    def add_narration(self,text,skip=None,repeat=False):
+        cutoff=False
+        if not repeat:
+            self.prev_narrations += self.repeated_narrations
+            self.repeated_narrations = []
+            self.prev_narrations = self.prev_narrations[:-15]
         
+        while len(self.buff_narrations) > 0 and \
+            self.buff_narrations[-1].skip == skip != None and \
+            not self.buff_narrations[-1].playing:
+                del self.buff_narrations[-1]
+        
+        if len(self.buff_narrations) and self.buff_narrations[-1].playing and self.buff_narrations[-1].skip == skip != None:
+            cutoff = True
+        narration = Narration(text,skip,repeat)
+        self.buff_narrations.append(narration)
+        if cutoff or len(self.buff_narrations) == 1:
+            self.narrate_buffer(narration,cutoff)
+
+    def repeat_narration(self):
+        if len(self.prev_narrations):
+            self.to_repeat = self.prev_narrations[-1]
+            del self.prev_narrations[-1]
+            self.repeated_narrations.insert(self.to_repeat,0)
+            self.add_narration('repeat ' + self.to_repeat.text, 'repeat', True)
+        else:
+            self.add_narration('repeat empty buffer', 'repeat', True)
+            
     def start(self,modes,port,baud_rate):
         self.modes = modes     
         self.baud_rate = baud_rate
@@ -185,101 +248,6 @@ def disable_mode(mode):
         return call
     return real_dec
 
-#########
-# Sound mode
-
-@disable_mode('CD')
-def prevCD(sc):
-    sc.audioPlayer.prevCD()
-    return sc.audioPlayer.getSelectedCD().name + ' cd','cd'
-
-@disable_mode('CD')
-def nextCD(sc):
-    sc.audioPlayer.nextCD()
-    return sc.audioPlayer.getSelectedCD().name + ' cd','cd'
-
-def selCD(sc):
-    def changeCD(val):
-        sc.audioPlayer.setCD(val)
-        return sc.audioPlayer.getSelectedCD().name, 'cd'
-
-    sc.analog.set_mode('CD',changeCD,max_val=sc.audioPlayer.getCDCount()-1)
-    sc.audioPlayer.setCD(sc.analog.val)
-    return "sel " + sc.audioPlayer.getSelectedCD().name + 'cd', 'cd'
-
-@disable_mode('song')
-def prevSong(sc):
-    sc.audioPlayer.prevSong()
-    song = sc.audioPlayer.getSelectedSong()
-    if song:
-        return song.name + ' Song','song'
-    else:
-        return 'no CD','song'
-
-@disable_mode('song')
-def nextSong(sc):
-    sc.audioPlayer.nextSong()
-    song = sc.audioPlayer.getSelectedSong()
-    if song:
-        return song.name + ' Song','song'
-    else:
-        return 'no CD','song'
-
-def selSong(sc):
-    def changeSong(val):
-        sc.audioPlayer.setSong(val)
-        return sc.audioPlayer.getSelectedSong().name,'song'
-        
-    if sc.audioPlayer.CDIndex != None:
-        sc.analog.set_mode('song',changeSong,max_val = sc.audioPlayer.getSongCount()-1)
-        sc.audioPlayer.setSong(sc.analog.val)
-        song = sc.audioPlayer.getSelectedSong()
-        if song:
-            return 'sel ' + song.name + ' song','song'
-    else:
-        return 'no CD','song'
-
-@disable_mode('amp')
-def maxAmp(sc):       
-    sc.audioPlayer.setVolume(100)
-    return 'max amp', 'amp'
-
-@disable_mode('amp')
-def muteAmp(sc):
-    sc.audioPlayer.setVolume(0)
-    return 'mute amp', 'amp'
-
-def selAmp(sc):
-    def change_amp(val,alert_info):
-        sc.audioPlayer.setVolume(val)
-        if alert_info != None:
-            return str(round(alert_info/10)*10), 'amp'
-    
-    sc.analog.set_mode('amp',change_amp,change_alert_freq=10)
-    sc.audioPlayer.setVolume(sc.analog.val)
-    return 'sel ' + str(sc.analog.val) + ' amp', 'amp'
-
-def playSong(sc):
-    sc.audioPlayer.playSong()
-    return 'play', 'play state'
-
-def pauseSong(sc):
-    sc.audioPlayer.pauseSong()
-    return 'pause', 'play state'
-
-def stopSong(sc):
-    sc.audioPlayer.stopSong()
-    return 'stop', 'play state'
-
-
-modes.append([
-    [playSong,maxAmp,
-     pauseSong,muteAmp,
-     stopSong,selAmp],
-    [nextSong,nextCD,
-     prevSong,prevCD,
-     selSong,selCD]]
-    )
 
 ########
 # mic
@@ -388,11 +356,109 @@ modes.append([
      sel_vol,sel_pitch],
     [fem_morph,child_morph,
      robot_morph,demon_morph,
-     wtf_morph,echo_morph]]
+     wtf_morph,echo_morph],
+    'voice']
+    )
+
+#########
+# audio mode
+
+@disable_mode('CD')
+def prevCD(sc):
+    sc.audioPlayer.prevCD()
+    return sc.audioPlayer.getSelectedCD().name + ' cd','cd'
+
+@disable_mode('CD')
+def nextCD(sc):
+    sc.audioPlayer.nextCD()
+    return sc.audioPlayer.getSelectedCD().name + ' cd','cd'
+
+def selCD(sc):
+    def changeCD(val):
+        sc.audioPlayer.setCD(val)
+        return sc.audioPlayer.getSelectedCD().name, 'cd'
+
+    sc.analog.set_mode('CD',changeCD,max_val=sc.audioPlayer.getCDCount()-1)
+    sc.audioPlayer.setCD(sc.analog.val)
+    return "sel " + sc.audioPlayer.getSelectedCD().name + 'cd', 'cd'
+
+@disable_mode('song')
+def prevSong(sc):
+    sc.audioPlayer.prevSong()
+    song = sc.audioPlayer.getSelectedSong()
+    if song:
+        return song.name + ' Song','song'
+    else:
+        return 'no CD','song'
+
+@disable_mode('song')
+def nextSong(sc):
+    sc.audioPlayer.nextSong()
+    song = sc.audioPlayer.getSelectedSong()
+    if song:
+        return song.name + ' Song','song'
+    else:
+        return 'no CD','song'
+
+def selSong(sc):
+    def changeSong(val):
+        sc.audioPlayer.setSong(val)
+        return sc.audioPlayer.getSelectedSong().name,'song'
+        
+    if sc.audioPlayer.CDIndex != None:
+        sc.analog.set_mode('song',changeSong,max_val = sc.audioPlayer.getSongCount()-1)
+        sc.audioPlayer.setSong(sc.analog.val)
+        song = sc.audioPlayer.getSelectedSong()
+        if song:
+            return 'sel ' + song.name + ' song','song'
+    else:
+        return 'no CD','song'
+
+@disable_mode('amp')
+def maxAmp(sc):       
+    sc.audioPlayer.setVolume(100)
+    return 'max amp', 'amp'
+
+@disable_mode('amp')
+def muteAmp(sc):
+    sc.audioPlayer.setVolume(0)
+    return 'mute amp', 'amp'
+
+def selAmp(sc):
+    def change_amp(val,alert_info):
+        sc.audioPlayer.setVolume(val)
+        if alert_info != None:
+            return str(round(alert_info/10)*10), 'amp'
+    
+    sc.analog.set_mode('amp',change_amp,change_alert_freq=10)
+    sc.audioPlayer.setVolume(sc.analog.val)
+    return 'sel ' + str(sc.analog.val) + ' amp', 'amp'
+
+def playSong(sc):
+    sc.audioPlayer.playSong()
+    return 'play', 'play state'
+
+def pauseSong(sc):
+    sc.audioPlayer.pauseSong()
+    return 'pause', 'play state'
+
+def stopSong(sc):
+    sc.audioPlayer.stopSong()
+    return 'stop', 'play state'
+
+
+modes.append([
+    [playSong,maxAmp,
+     pauseSong,muteAmp,
+     stopSong,selAmp],
+    [nextSong,nextCD,
+     prevSong,prevCD,
+     selSong,selCD],
+     'media']
     )
 
 ########
-# splice
+# sound_board
 
 def sel_board(self,sc):
     def change_board(board_index):
@@ -449,8 +515,55 @@ modes.append([
      ph.toggle_preview, partial(ph.play_board_button,2) ],
     [partial(ph.play_board_button,3),partial(ph.play_board_button,6),
      partial(ph.play_board_button,4),partial(ph.play_board_button,7),
-     partial(ph.play_board_button,5),partial(ph.play_board_button,8)]]
+     partial(ph.play_board_button,5),partial(ph.play_board_button,8)],
+    'board'
+    ]
     )
+
+modes.append([],[],None) # TODO: recorder tab
+
+modes.append([],[],None) #TODO: splice tab
+
+########
+# settings
+
+@disable_mode('audio vol')
+def norm_audio_vol(sc):
+
+@disable_mode('audio vol')
+def low_audio_vol(sc):
+
+def sel_audio_vol(sc):
+
+@disable_mode('tts vol')
+def norm_tts_vol(sc):
+
+@disable_mode('tts vol')
+def low_tts_vol(sc):
+
+def sel_tts_vol(sc):
+
+@disable_mode('mic vol')    
+def norm_mic_vol(sc):
+
+@disable_mode('mic vol')
+def low_mic_vol(sc):
+
+def sel_mic_vol(sc):
+
+@disable_mode('audio vol')
+@disable_mode('tts vol')
+@disable_mode('mic vol')
+def norm_all_vol(sc):
+
+@disable_mode('audio vol')
+@disable_mode('tts vol')
+@disable_mode('mic vol')
+def low_all_vol(sc):
+
+def sel_all_vol(sc):
+    
+
 
 #def prev_board(sc):
 
