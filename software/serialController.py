@@ -68,18 +68,22 @@ def set_mode(mode,self):
     9  8   *6    10*13
      11           *7
     '''
-    if self.button_states[0] and self.button_states[2] and self.button_state[6]:
+    if self.button_states[0] and self.button_states[2] and self.button_states[6]:
         mode = 6
     elif self.button_states[0] and self.button_states[2]:
         mode = 3
     elif self.button_states[2] and self.button_states[6]:
-        mode = 4
-    elif self.button_states[0] and self.button_states[6]:
         mode = 5
+    elif self.button_states[0] and self.button_states[6]:
+        mode = 4
+        
     
     
     self.mode = mode
     group1,group2,name = self.modes[mode]
+
+    if not name:
+        return
     
     self.buttonFuncs = [
         partial(set_mode,0),#0
@@ -100,7 +104,7 @@ def set_mode(mode,self):
         group2[0],
         group2[1]   #16
         ]
-    return voice + ' mode', 'mode'
+    return name + ' mode', 'mode'
 
 
 
@@ -110,7 +114,7 @@ class SerialController():
                  micToSelfDevices,audioToSelfDevices,privateAudioToSelfDevices,
                  audioToOutputDevices,micToOutputDevices,
                  morphVoxPath="C:\\Program Files (x86)\\Screaming Bee\\MorphVOX Pro\\MorphVOXPro.exe",
-                 self_audio_volume = 0.15
+                 self_audio_volume = 0.15,
                  self_mic_volume = 0.15,
                  self_private_volume = 0.33):
         
@@ -125,6 +129,8 @@ class SerialController():
 
         self.self_audio_volume = self_audio_volume
         self.self_mic_volume = self_mic_volume
+        self.self_mic_volume_mod = 1
+        self.out_mic_vol = 1
         self.self_private_volume = self_private_volume
         self.micToSelf = SoundHandler(*micToSelfDevices,volume=self_mic_volume)
         self.audioToSelf = SoundHandler(*audioToSelfDevices,volume=self_audio_volume)
@@ -144,9 +150,12 @@ class SerialController():
     def narrate_buffer(self,narration,cutoff=False):
         def thread_target():
             if not narration.repeat:
+                for n in self.prev_narrations:
+                    if n.skip == narration.skip:
+                        self.prev_narrations.remove(n)
                 self.prev_narrations.append(narration)
             
-            ttsPlayer.threadless_say(text,cutoff)
+            self.ttsPlayer.threadless_say(narration.text,cutoff)
             index = self.buff_narrations.index(narration)
             if len(self.buff_narrations) > index + 1 and not self.buff_narrations[index+1].playing:
                 self.narrate_buffer(self.buff_narrations[index+1],cutoff=False)
@@ -161,8 +170,9 @@ class SerialController():
         if not repeat:
             self.prev_narrations += self.repeated_narrations
             self.repeated_narrations = []
-            self.prev_narrations = self.prev_narrations[:-15]
-        
+            self.prev_narrations = self.prev_narrations[-15:]
+            #print('not repeat',self.prev_narrations)
+            
         while len(self.buff_narrations) > 0 and \
             self.buff_narrations[-1].skip == skip != None and \
             not self.buff_narrations[-1].playing:
@@ -179,8 +189,8 @@ class SerialController():
         if len(self.prev_narrations):
             self.to_repeat = self.prev_narrations[-1]
             del self.prev_narrations[-1]
-            self.repeated_narrations.insert(self.to_repeat,0)
-            self.add_narration('repeat ' + self.to_repeat.text, 'repeat', True)
+            self.repeated_narrations.insert(0,self.to_repeat)
+            self.add_narration('repeat ' + self.to_repeat.text + ' ' + str(self.prev_narrations), 'repeat', True)
         else:
             self.add_narration('repeat empty buffer', 'repeat', True)
             
@@ -215,12 +225,12 @@ class SerialController():
                         ret_inf = self.buttonFuncs[buttonId](self)
                         print('tts:', ret_inf )
                         if ret_inf:
-                            self.ttsPlayer.add_narration(*ret_inf)
+                            self.add_narration(*ret_inf)
                     
                 elif val[:5] == b'AgCh:':
                     ret_inf = self.analog.set_volt(int(val[5:-1]))
                     if ret_inf:
-                        self.ttsPlayer.add_narration(*ret_inf)
+                        self.add_narration(*ret_inf)
                     
                     
                     #print('analog val' + str(val[5:]))
@@ -254,26 +264,30 @@ def disable_mode(mode):
 
 @disable_mode('vol')
 def mute_vol(sc):
+    sc.out_mic_vol = 0
     sc.micToOutput.volume = 0
     sc.micToSelf.volume = 0
     return 'mute vol','vol'
 
 @disable_mode('vol')
 def norm_vol(sc):
+    sc.out_mic_vol = 1    
     sc.micToOutput.volume = 1
-    sc.micToSelf.volume = 1 * sc.self_output_volume
+    sc.micToSelf.volume = sc.self_mic_volume_mod * sc.out_mic_vol * sc.self_mic_volume
     return 'norm vol','vol'
 
 def sel_vol(sc):
     def changeVol(val,alert_info):
+        sc.out_mic_vol = val
         sc.micToOutput.volume = val
-        sc.micToSelf.volume =  val * sc.self_output_volume
+        sc.micToSelf.volume = sc.self_mic_volume_mod * sc.out_mic_vol * sc.self_mic_volume
         if alert_info != None:
             return str(int(val*20)*5), 'vol'
     
     sc.analog.set_mode('vol',changeVol,change_alert_freq=0.3333,max_val=5.0)
-    sc.micToOutput.volume = sc.analog.val
-    sc.micToSelf.volume =  sc.analog.val * sc.self_output_volume
+    sc.out_mic_vol = sc.analog.val
+    sc.micToOutput.volume = sc.out_mic_vol
+    sc.micToSelf.volume = sc.self_mic_volume_mod * sc.out_mic_vol * sc.self_mic_volume
     return 'sel ' + str(int(sc.analog.val*20)*5) + ' vol', 'vol'
 
 
@@ -470,7 +484,7 @@ def sel_board(self,sc):
 @disable_mode('board')
 def next_board(sc):
     if sc.button_states[1]:
-        sel_board(sc)
+        return sel_board(sc)
     else:
         sc.audioPlayer.nextBoard()
         return sc.audioPlayer.getSelectedBoard().name + ' board', 'board'
@@ -478,7 +492,7 @@ def next_board(sc):
 @disable_mode('board')     
 def prev_board(sc):
     if sc.button_states[3]:
-        sel_board(sc)
+        return sel_board(sc)
     else:
         sc.audioPlayer.prevBoard()
         sc.audioPlayer.getSelectedBoard().name + ' board', 'board'
@@ -520,48 +534,124 @@ modes.append([
     ]
     )
 
-modes.append([],[],None) # TODO: recorder tab
+modes.append([[],[],None]) # TODO: recorder tab
 
-modes.append([],[],None) #TODO: splice tab
+modes.append([[],[],None]) #TODO: splice tab
 
 ########
 # settings
-
+'''
+self.self_audio_volume = self_audio_volume
+        self.self_mic_volume = self_mic_volume
+        self.self_private_volume = self_private_volume
+        self.micToSelf = SoundHandler(*micToSelfDevices,volume=self_mic_volume)
+        self.audioToSelf = SoundHandler(*audioToSelfDevices,volume=self_audio_volume)
+        self.privateAudioToSelf = SoundHandler(*privateAudioToSelfDevices,volume=self_private_volume)
+        
+'''
 @disable_mode('audio vol')
 def norm_audio_vol(sc):
-
+    sc.audioToSelf.volume = sc.self_mic_volume
+    return 'norm audio vol', 'audio vol'
+        
 @disable_mode('audio vol')
 def low_audio_vol(sc):
+    sc.audioToSelf.volume = sc.self_mic_volume * 0.33
+    return 'low audio vol', 'audio vol'
 
 def sel_audio_vol(sc):
+    def change_audio_vol(change_vol,alert_info):
+        sc.audioToSelf.volume = change_vol
+        if alert_info:
+            return str(int(alert_info*10)*10) + ' audio vol', 'audio vol'
+    sc.analog.set_mode('audio vol ',change_audio_vol,change_alert_freq=0.20,max_val=2.0)
+    sc.audioToSelf.volume = sc.self_audio_volume * sc.analog.val
+    return 'sel ' + str(int(sc.analog.val*10)*10) + ' audio vol', 'audio vol'
 
-@disable_mode('tts vol')
-def norm_tts_vol(sc):
+@disable_mode('private vol')
+def norm_private_vol(sc):
+    sc.privateAudioToSelf.volume = sc.self_private_volume
+    return 'norm private vol', 'private vol'
 
-@disable_mode('tts vol')
-def low_tts_vol(sc):
+@disable_mode('private vol')
+def low_private_vol(sc):
+    sc.privateAudioToSelf.volume = sc.self_private_volume * 0.33
+    return 'low private vol', 'private vol'
+    
+def sel_private_vol(sc):
+    def change_tts_vol(tts_vol,alert_info):
+        sc.privateAudioToSelf.volume = sc.self_private_volume * tts_vol
+        if alert_info:
+            return str(int(alert_info*10)*10) + ' private vol', 'private vol'
 
-def sel_tts_vol(sc):
+    sc.analog.set_mode('private vol', change_tts_vol, change_alert_freq=0.20, max_val = 2.0)
+    sc.privateAudioToSelf.volume = sc.analog.val
+    return 'sel ' + str(int(sc.analog.val*10)*10) + ' private vol','private vol'
 
 @disable_mode('mic vol')    
 def norm_mic_vol(sc):
+    sc.self_mic_volume_mod = 1
+    sc.micToSelf.volume = sc.self_mic_volume_mod * sc.out_mic_vol * sc.self_mic_volume
+    return 'norm vol', 'mic vol'
 
 @disable_mode('mic vol')
 def low_mic_vol(sc):
+    sc.self_mic_volume_mod = 0.33
+    sc.micToSelf.volume = sc.self_mic_volume_mod * sc.out_mic_vol * sc.self_mic_volume
+    return 'low vol','mic vol'
 
 def sel_mic_vol(sc):
+    def change_mic(mic_val, alert_info):
+        sc.self_mic_volume_mod = mic_val
+        sc.micToSelf.volume = sc.self_mic_volume_mod * sc.out_mic_vol * sc.self_mic_volume
+        if alert_info:
+            return str(int(alert_info*10)*10) + ' mic vol', 'mic vol'
+    
+    sc.analog.set_mode('mic vol', change_mic, change_alert_freq = 0.20, max_val = 2.0)
+    sc.analog.self_mic_volume_mod = sc.analog.val
+    sc.micToSelf.volume = sc.self_mic_volume_mod * sc.out_mic_vol * sc.self_mic_volume
+    return 'sel ' + str(int(sc.analog.val*10)*10) + ' mic vol', 'mic vol'
 
-@disable_mode('audio vol')
-@disable_mode('tts vol')
-@disable_mode('mic vol')
+@disable_mode('all vol')
 def norm_all_vol(sc):
+    norm_audio_vol(sc)
+    norm_private_vol(sc)
+    norm_mic_vol(sc)
+    return 'norm all vol', 'all vol'
 
-@disable_mode('audio vol')
-@disable_mode('tts vol')
-@disable_mode('mic vol')
+@disable_mode('all vol')
 def low_all_vol(sc):
+    low_audio_vol(sc)
+    low_private_vol(sc)
+    low_mic_vol(sc)
+    'low all vol', 'all vol'
 
 def sel_all_vol(sc):
+    def change_all_val(mic_val,alert_info):
+        sc.self_mic_volume_mod = mic_val
+        sc.micToSelf.volume = sc.self_mic_volume_mod * sc.out_mic_vol * sc.self_mic_volume
+        sc.audioToSelf.volume = mic_val * sc.self_private_volume
+        sc.privateAudioToSelf.volume = mic_val * sc.self_private_volume
+        sc.micToSelf.volume = mic_val * sc.self_mic_volume_mod * sc.out_mic_vol
+        if alert_info:
+            return str(int(alert_info*10)*10) + ' all vol', 'all vol'
+
+    sc.analog.set_mode('all vol',change_all_val, change_alert_freq=0.20, max_val = 2.0)
+    sc.self_mic_volume_mod = sc.analog.val
+    sc.audioToSelf.volume = sc.self_mic_volume_mod * sc.self_private_volume
+    sc.privateAudioToSelf.volume = sc.self_mic_volume_mod * sc.self_private_volume
+    sc.micToSelf.volume = sc.self_mic_volume_mod * sc.out_mic_vol * sc.self_mic_volume
+    return 'sel ' + str(int(sc.self_mic_volume_mod*10)*10) + ' all vol', 'all vol'
+    
+modes.append([
+    [norm_private_vol, norm_mic_vol,
+     low_private_vol, low_mic_vol,
+     sel_private_vol, sel_mic_vol],
+    [norm_audio_vol, norm_all_vol,
+     low_audio_vol, low_all_vol,
+     sel_audio_vol, sel_all_vol],
+    'settings'
+    ])
     
 
 

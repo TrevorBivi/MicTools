@@ -21,7 +21,7 @@ class Balcon(object):
         cmd_inp += ' -t "' + text + '"'
         return cmd_inp
 
-    def threadless_say(text,cutoff=False):
+    def threadless_say(self,text,cutoff=False):
         subprocess.call( self.gen_cmd(text,cutoff), startupinfo=si )
 
     def say(self,text,cutoff=False):

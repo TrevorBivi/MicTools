@@ -24,7 +24,6 @@ class AudioPlayer():
         for CDPath in os.listdir(audioPath + '\\SoundBoards'):
             self.boards.append( CD(audioPath + '\\SoundBoards\\' + CDPath) )
         
-        
         self.CDIndex = None
         self.songIndex = None
         self.volume = 100
