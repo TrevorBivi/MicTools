@@ -1,10 +1,49 @@
+'''
+ABOUT:
+Contains class for bridging audio from an input to output device and recording audio from an input or output device
+
+IMPORTANT CLASSES:
+SoundHandler -- handles connection from an input to output device
+Recorder -- records and stores audio from an input device or WASAPI input device
+
+IMPORT METHOS:
+getDeviceIndex -- return the index of a device host api by name
+getDeviceIndex -- return the index of a device by name
+
+TODO:
+ - make SoundHandler use Intxcc's pyaudio branch instead of sounddevice to decrease the required dependencies
+'''
+
 import sounddevice as sd
+
+# Note: this requires Intxcc's pyaudio branch!
+# it allows recording output audio from the soundcard
+# https://github.com/intxcc/pyaudio_portaudio
+import pyaudio
 import time
 from functools import partial
 import threading
 import numpy
 assert numpy
 
+p = pyaudio.PyAudio()
+
+def get_host_api(host_api_name):
+    for i in range(get_host_api_count()):
+        info = p.get_host_api_count(i)
+        if info.name == host_api_name:
+            return i
+
+def get_device(device_name, host_api_name=None, host_api_index=None):
+    if host_api_name:
+        host_api_index = get_host_api(host_api_name)['index']
+    elif not host_api_index:
+       raise TypeError('host_api_name or host_api_index should be degined')
+    
+    for i in range(p.get_device_count()):
+        info = p.get_device_info_by_index(i)
+        if info['name'] == device_name and info['hostApi'] == host_api_index:
+            return info['index']
 
 def unbound_callback(sh, indata, outdata, frames, time, status):
     if status:
@@ -47,4 +86,27 @@ class SoundHandler(object):
         self.latency = latency
         self.channels = channels
         self.callback = unbound_callback if callback else partial(unbound_callback,self)
-    
+
+
+class Recorder(object):
+    def __init__(self,device_name,host_api_name='Windows WASAPI'
+                 pre_rec_len=5):
+
+        self.host_api_info = get_host_api_index(host_api_name)
+        self.device_info = get_device(device_name,self.host_api_info['index'])
+        self.pre_rec_len = pre_rec_len
+        self.record()
+
+    def record():
+        def thread_target():
+            stream = p.open(format = pyaudio.paInt16,
+                channels = channelcount,
+                rate = int(device_info["defaultSampleRate"]),
+                input = True,
+                frames_per_buffer = defaultframes,
+                input_device_index = device_info["index"],
+                as_loopback = useloopback)
+        
+
+        
+    #def take_audio():
