@@ -39,6 +39,7 @@ def get_host_api(host_api_name):
             return info
 
 def get_device(device_name, host_api_name=None, host_api_index=None):
+
     if host_api_name:
         host_api_index = get_host_api(host_api_name)['index']
     elif not host_api_index:
@@ -47,7 +48,7 @@ def get_device(device_name, host_api_name=None, host_api_index=None):
     for i in range(p.get_device_count()):
         info = p.get_device_info_by_index(i)
         if info['name'] == device_name and info['hostApi'] == host_api_index:
-            return info['index']
+            return info
 
 def unbound_callback(sh, indata, outdata, frames, time, status):
     if status:
@@ -97,21 +98,25 @@ class Recorder(object):
                  pre_rec_len=5):
 
         self.host_api_info = get_host_api(host_api_name)
-        self.device_info = get_device(device_name,self.host_api_info['index'])
+        self.device_info = get_device(device_name,host_api_index=self.host_api_info['index'])
         self.pre_rec_len = pre_rec_len
         self.frames = []
-        self.record()
-        self.extend_record = True
         
+        self.extend_record = True
+        self.recording_input = (self.device_info["maxOutputChannels"] < self.device_info["maxInputChannels"])
+        self.channelcount = self.device_info["maxInputChannels" if self.recording_input else "maxOutputChannels"]
+
+        self.record()
+
     def record(self):
         def thread_target():
             stream = p.open(format = pyaudio.paInt16,
-                channels = channelcount,
+                channels = 1,#self.channelcount,
                 rate = int(self.device_info["defaultSampleRate"]),
                 input = True,
                 frames_per_buffer = defaultframes,
                 input_device_index = self.device_info["index"],
-                as_loopback = useloopback)
+                as_loopback = self.recording_input)
             while True:            
                 self.frames.append(stream.read(defaultframes))
 
