@@ -28,11 +28,15 @@ assert numpy
 
 p = pyaudio.PyAudio()
 
+defaultframes = 512
+
 def get_host_api(host_api_name):
-    for i in range(get_host_api_count()):
-        info = p.get_host_api_count(i)
-        if info.name == host_api_name:
-            return i
+    for i in range(p.get_host_api_count()):
+        print('some host')
+        info = p.get_host_api_info_by_index(i)
+        if info['name'] == host_api_name:
+            print('info name', info)
+            return info
 
 def get_device(device_name, host_api_name=None, host_api_index=None):
     if host_api_name:
@@ -89,23 +93,36 @@ class SoundHandler(object):
 
 
 class Recorder(object):
-    def __init__(self,device_name,host_api_name='Windows WASAPI'
+    def __init__(self,device_name='Speakers (High Definition Audio Device)',host_api_name='Windows WASAPI',
                  pre_rec_len=5):
 
-        self.host_api_info = get_host_api_index(host_api_name)
+        self.host_api_info = get_host_api(host_api_name)
         self.device_info = get_device(device_name,self.host_api_info['index'])
         self.pre_rec_len = pre_rec_len
+        self.frames = []
         self.record()
-
-    def record():
+        self.extend_record = True
+        
+    def record(self):
         def thread_target():
             stream = p.open(format = pyaudio.paInt16,
                 channels = channelcount,
-                rate = int(device_info["defaultSampleRate"]),
+                rate = int(self.device_info["defaultSampleRate"]),
                 input = True,
                 frames_per_buffer = defaultframes,
-                input_device_index = device_info["index"],
+                input_device_index = self.device_info["index"],
                 as_loopback = useloopback)
+            while True:            
+                self.frames.append(stream.read(defaultframes))
+
+                if not self.extend_record:
+                    self.frames = self.frames[  -500:]
+                
+        thread = threading.Thread(target=thread_target)
+        thread.start()
+
+    def write_recorded(self):
+        sd.play(data, fs, device='Speakers (High Definition Audio, MME')
         
 
         
