@@ -10,14 +10,23 @@ NOTE:WIP Recording / splicing is only partially complete. The rest of the modes 
 The serial controller has __ different button functions.
 
 ╔══╦══╗╔══╗╔══╦══╗
+
 ║ 1║ 2║║M1║║ 7║ 8║
+
 ╠══╬══╣╠══╣╠══╬══╣
+
 ║ 3║ 4║║M2║║ 9║10║
+
 ╠══╬══╣╠══╣╠══╬══╣
+
 ║ 5║ 6║║M3║║11║12║
+
 ╚╦═╩╦═╝╚══╝╚═╦╩═╦╝
+
  ║S1║   __   ║S2║
+
  ╚══╝  |  |  ╚══╝
+ 
 	  [DIAL]
 
 ## Special Buttons
