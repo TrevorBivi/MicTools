@@ -23,7 +23,13 @@ The serial controller has __ different button functions.
 
 `╚╦═╩╦═╝╚══╝╚═╦╩═╦╝`
 
-`&nbsp;║S1║&nbsp;&nbsp;&nbsp;__;&nbsp;&nbsp;&nbsp;║S2║`
+`
+&nbsp;
+║S1║
+&nbsp;&nbsp;&nbsp;
+__
+&nbsp;&nbsp;&nbsp;
+║S2║`
 
 `&nbsp;╚══╝&nbsp;&nbsp;|&nbsp;&nbsp;|;&nbsp;&nbsp;╚══╝`
  
