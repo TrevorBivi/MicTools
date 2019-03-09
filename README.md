@@ -39,8 +39,19 @@ The special buttons never change what they do
 ## Mode Button
 Mode buttons select one of 8 modes depending on the buttons pressed. Buttons must be pressed in the order listed to unless otherwise stated. Pressing all the buttons restarts the device.
 
+### Mic effect
+_press M1_
+
+### Audio Player
+_press M2_
+
+### Soundboard Player
+_Press M3_
+
+
 ### Raw editor
 _press M1,M2_
+
 This mode is used to perform actions on raw recordings that have been created with the recording button.
 
 **Buttons 1 & 2:** Select the next/previous recording. Pressing both will cause dial to dictate the selected recording.
@@ -67,6 +78,7 @@ This mode is used to perform actions on raw recordings that have been created wi
 
 ### Recording manager
 _press M2, M1_
+
 **Button 1:** Add new soundboard
 
 **Button 2:** Remove selected soundboard
@@ -85,6 +97,7 @@ _press M2, M1_
 
 ### Remix Maker
 _press M2, M3_
+
 **button 1 & 2:** Next/prev song. Pressing both will cause dial to dictate selected song
 
 **button 3 & 4:** Next/prev cut recording. pressing both will cause dial to select cut recording
@@ -107,3 +120,9 @@ _press M2, M3_
 
 ### 
 _press M3, M2_
+
+###User Playback Settings
+_press M1 and M3 in either order_
+
+###Restart device
+_press M1, M2 and M3 in any order_
