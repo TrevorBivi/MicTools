@@ -29,7 +29,7 @@ import wave
 
 p = pyaudio.PyAudio()
 
-defaultframes = 512
+defaultframes = 1024
 
 def get_host_api(host_api_name):
     for i in range(p.get_host_api_count()):
@@ -96,17 +96,40 @@ class SoundHandler(object):
         self.channels = channels
         self.callback = unbound_callback if callback else partial(unbound_callback,self)
 
-
 class Recording(object):
-    def __init__(self,frames,channels,rate,input,frames_per_buffer,input_device_index):
+    def __init__(self,frames,channels,rate):
         self.frames = frames
         self.channels = channels
         self.rate = rate
-        self.input = input
-        self.frames_per_buffer = frames_per_buffer
-        self.input_device_index = input_device_index
-
         
+    def play(self,device_name='Speakers (High Definition Audio Device)',host_api_name='Windows WASAPI'):
+        host_api_info = get_host_api(host_api_name)
+        device_info = get_device(device_name,host_api_index=host_api_info['index'])
+        
+        stream = p.open(format = pyaudio.paInt16,
+            channels = self.channels,
+            rate = self.rate,
+            output = True,
+            frames_per_buffer = defaultframes,
+            output_device_index = device_info['index'])
+        
+        for frame in self.frames:
+            # writing to the stream is what *actually* plays the sound.
+            stream.write(frame)
+
+        stream.stop_stream()
+        stream.close()
+
+    def write(self,name=None):
+        if not name:
+            name = str(time.time()) + '.wav'
+
+        waveFile = wave.open(name, 'wb')
+        waveFile.setnchannels( self.channels)
+        waveFile.setsampwidth(p.get_sample_size(pyaudio.paInt16))
+        waveFile.setframerate(self.rate)
+        waveFile.writeframes(b''.join(self.frames))
+        waveFile.close()
 
 class Recorder(object):
     def __init__(self,device_name='Speakers (High Definition Audio Device)',host_api_name='Windows WASAPI',
@@ -143,81 +166,6 @@ class Recorder(object):
                 
         thread = threading.Thread(target=thread_target)
         thread.start()
-
-    def write_recording(self):
-        #sd.play(self.frames, self.device_info["defaultSampleRate"], device='Speakers / Headphones (IDT High, MME')#'Speakers (High Definition Audio, MME')  
-        waveFile = wave.open(str(time.time()) + '.wav', 'wb')
-        waveFile.setnchannels( self.channelcount)
-        waveFile.setsampwidth(p.get_sample_size(pyaudio.paInt16))
-        waveFile.setframerate(int(self.device_info["defaultSampleRate"]))
-        waveFile.writeframes(b''.join(self.frames))
-        waveFile.close()
-
-    def play_recording(self):
-        stream = p.open(format = pyaudio.paInt16,
-                channels = self.channelcount,
-                rate = int(self.device_info["defaultSampleRate"]),
-                output = True,
-                frames_per_buffer = defaultframes,
-                output_device_index = self.device_info['index'])
         
-        # read data (based on the chunk size)
-        print(p.get_format_from_width(p.get_sample_size(pyaudio.paInt16)),int(self.device_info["defaultSampleRate"]),type(self.frames[0]))
-        frames = self.frames[:]
-        frame = 0
-        
-        data = self.frames[0]
-        # play stream (looping from beginning of file to the end)
-        for f in range(len(frames)):
-            # writing to the stream is what *actually* plays the sound.
-            stream.write(data)
-            frame += 1
-            data = self.frames[f]
-            #print(len(data),len(frames),frame)
-        print('close stream')
-        stream.stop_stream()
-        stream.close()
-
-
-
-#####
-'''
-class Recorder(object):
-    def __init__(self,device_name='Speakers (High Definition Audio Device)',host_api_name='Windows WASAPI',
-                 pre_rec_len=5):
-
-        self.host_api_info = get_host_api(host_api_name)
-        self.device_info = get_device(device_name,host_api_index=self.host_api_info['index'])
-        self.pre_rec_len = pre_rec_len
-        self.frames = []
-        
-        self.extend_record = True
-        self.recording_input = (self.device_info["maxOutputChannels"] < self.device_info["maxInputChannels"])
-        self.channelcount = self.device_info["maxInputChannels" if self.recording_input else "maxOutputChannels"]
-
-        self.record()
-
-    def record(self):
-        def thread_target():
-            stream = p.open(format = pyaudio.paInt16,
-                channels = 1,#self.channelcount,
-                rate = int(self.device_info["defaultSampleRate"]),
-                input = True,
-                frames_per_buffer = defaultframes,
-                input_device_index = self.device_info["index"],
-                as_loopback = self.recording_input)
-            while True:            
-                self.frames.append(stream.read(defaultframes))
-
-                if not self.extend_record:
-                    self.frames = self.frames[  -500:]
-                
-        thread = threading.Thread(target=thread_target)
-        thread.start()
-
-    def write_recorded(self):
-        sd.play(data, fs, device='Speakers (High Definition Audio, MME')
-        '''
-
-        
-    #def take_audio():
+    def get_recording(self):
+        return Recording(self.frames[:],self.channelcount,int(self.device_info["defaultSampleRate"]))
