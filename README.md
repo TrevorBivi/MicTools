@@ -23,17 +23,11 @@ The serial controller has __ different button functions.
 
 `╚╦═╩╦═╝╚══╝╚═╦╩═╦╝`
 
-`
-&nbsp;
-║S1║
-&nbsp;&nbsp;&nbsp;
-__
-&nbsp;&nbsp;&nbsp;
-║S2║`
+`-║S1║--------║S2║`
 
-`&nbsp;╚══╝&nbsp;&nbsp;|&nbsp;&nbsp;|;&nbsp;&nbsp;╚══╝`
+`-╚══╝--------╚══╝`
  
-`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[DIAL]`
+`------[DIAL]`
 
 ## Special Buttons
 The special buttons never change what they do
