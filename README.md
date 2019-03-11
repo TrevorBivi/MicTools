@@ -4,7 +4,7 @@ Control playlists, soundboards, voice morphing, live recording/spicing (TODO) an
 *An image of the controller.*
 
 
-NOTE:WIP Recording / splicing is only partially complete. The rest of the modes described may not be mapped the buttons stated yet
+NOTE:WIP Recording / splicing & pitch / speed modifying is only partially complete. The rest of the functions described may not be mapped the buttons stated yet
 
 #Button Functions
 The serial controller has __ different button functions.
@@ -42,12 +42,55 @@ Mode buttons select one of 8 modes depending on the buttons pressed. Buttons mus
 ### Mic effect
 _press M1_
 
+**Button 1-6:** Select morph voice 
+
+**Button 7 & 8:** Default/mute volume. Pressing both will cause dial to dictate volume (0%-500%)
+
+**Button 9 & 10:** Next/prev pitch morph voice. Pressing both will cause dial to dictate pitch morph voice
+
+**Button 11 & 12:** Enable/disable morphing
+
 ### Audio Player
 _press M2_
+
+**Button 1 & 2:** Next/prev CD. Pressing both will cause dial to dictate CD
+
+**Button 3 & 4:** Next/prev song. Pressing both will cause dial to dictate Song
+
+**Button 5:** Start playing audio
+
+**Button 6:** Pause audio or stop paused audio
+
+**Button 7 & 8:** Normal/Mute volume. Pressing both will cause dial to dictate volume
+
+**Button 9:** Normal pitch
+
+**Button 10:** Dial dictates pitch
+
+**Button 11:** Normal speed
+
+**Button 12:** Dial dictates speed
 
 ### Soundboard Player
 _Press M3_
 
+**Button 1 & 2:** Next/prev soundboard. Pressing both makes dial dictate soundboard
+
+**Button 3 & 4:** Preview/play on press
+
+**Button 5 & 6:** Buttons 7-12 complete actions listed below / play sound 1-6 from soundboard
+
+**Button 7:** Normal volume
+
+**Button 8:** Dial dictates volume
+
+**Button 9:** Normal pitch
+
+**Button 10:** Dial dictates pitch
+
+**Button 11:** Normal speed
+
+**Button 12:** Dial dictates speed
 
 ### Raw editor
 _press M1,M2_
@@ -76,27 +119,8 @@ This mode is used to perform actions on raw recordings that have been created wi
 
 **Button 12:** Dial selects cut recording speed
 
-### Recording manager
-_press M2, M1_
-
-**Button 1:** Add new soundboard
-
-**Button 2:** Remove selected soundboard
-
-**Button 3 & 4:** Select next/prev soundboard. Pressing both will cause dial to dictate selected soundboard.
-
-**Button 5 & 6:** Preview next/prev cut recording in board. Pressing both will stop playing a preview.
-
-**Button 7:** Add new remix group to board
-
-**Button 8:** Remove selected remix group
-
-**Button 9 & 10:** Next/prev remix group. Pressing both will cause dial to dictate selected remix group.
-
-**Button 11 & 12:** Preview next/prev cut recording in remix group. Pressing both will stop playing a preview.
-
 ### Remix Maker
-_press M2, M3_
+_press M2, M1_
 
 **button 1 & 2:** Next/prev song. Pressing both will cause dial to dictate selected song
 
@@ -118,8 +142,45 @@ _press M2, M3_
 
 **button 12:** Dial dictates speed
 
-### 
+### Soundboard manager
+_press M2, M3_
+
+**Button 1 & 2:** Next/Prev soundboard 
+
+**Button 3 & 4:** Cut/paste cut recording
+
+**Button 5 & 6:** buttons 7-12 represent volume, pitch, speed settings below/select cut recording 1-6 from soundboard
+
+**Button 7:** Normal volume
+
+**Button 8:** Dial dictates volume
+
+**Button 9:** Normal pitch
+
+**Button 10:** Dial dictates volume
+
+**Button 11:** Normal speed
+
+**Button 12:** Dial dictates speed
+
+### Remix manager
 _press M3, M2_
+
+**Button 1 & 2:** Next/prev remix. Pressing both will make dial dictate remix
+
+**Button 3 & 4:** Next/prev sound slot. Pressing both will make dial dictate sound slot
+
+**Button 5 & 6:** Cut/paste last focused                                                                           
+
+**Button 5 & 6:** Preview next/prev cut recording in board. Pressing both will stop playing a preview.
+
+**Button 7:** Add new remix group to board
+
+**Button 8:** Remove selected remix group
+
+**Button 9 & 10:** Next/prev remix group. Pressing both will cause dial to dictate selected remix group.
+
+**Button 11 & 12:** Preview next/prev cut recording in remix group. Pressing both will stop playing a preview.
 
 ###User Playback Settings
 _press M1 and M3 in either order_
