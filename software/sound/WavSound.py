@@ -2,9 +2,11 @@ from __future__ import division
 
 import numpy
 import librosa
+from threading import Condition, Event, Thread
+import time
+from sounddevice import OutputStream
 
-
-class Sound(object):
+class WavSound(object):
     """ Sound object which can be read chunk by chunk. """
 
     def __init__(self, orig_data, sr, chunk_size=1024):
@@ -22,49 +24,157 @@ class Sound(object):
 
         """
         self.chunk_size = chunk_size
-
+        self.jkl = int(chunk_size/4)
+        self.sr = sr
+        self.devices = ('CABLE-A Input (VB-Audio Cable A, MME','CABLE-B Input (VB-Audio Cable B, MME')
         self.orig_index = 0
-        self.proc_index = 0
-        self.orig_data, self.sr = orig_data.astype(dtype='float32'), sr
-        self.proc_data = orig_data[:]
+        self.orig_data = orig_data
+        self.pitch_data = orig_data[:]
+        self._playing = True
+
+        #the actual speed for the phase vocoder to playback audio at after adjusting for resampling to increase pitch
+        #If None then program is using a fallback real time pitch adjustment 
+        self._resampled_speed = None
         
-        self._pitch = 0
-        self._speed = 1.0
+        self._pitch = 1.0
+        self._speed = 1.0 # desired speed by user
         self.vol = 100
+        self._init_stretching()
+
+    def _init_stretching(self):
+        self.orig_index = 0
+        self.pitch_index = 0
+        self.proc_index = 0
+        
+        self._window = numpy.hanning(self.chunk_size)
+        self._angle = numpy.zeros(self.chunk_size, dtype=self.orig_data.dtype)
+        self.proc_data = numpy.zeros(len(self.pitch_data), dtype=self.orig_data.dtype)
+
+        self._zero_padding()
+
+    def _zero_padding(self):
+        padding = int(numpy.ceil(len(self.pitch_data) / self.speed + self.chunk_size) - len(self.proc_data))
+        if padding > 0:
+            self.proc_data = numpy.concatenate((self.proc_data,
+                                          numpy.zeros(padding, dtype=self.proc_data.dtype)))
+
+    def play_self(self):
+        def thread_target():
+            streams = []
+            for d in self.devices:
+                streams.append(OutputStream(samplerate=self.sr, device=d, channels=1, blocksize=self.chunk_size, dtype='float32').__enter__())
+            try:
+                print('playing')
+                while self.playing:
+                    #print(streams)
+                    chunk = self.next_chunk()
+                    [s.write(chunk) for s in streams]
+            except Exception as err:
+                print('playing error')
+                [s.__exit__() for s in streams]
+                raise err
+
+        play_thread = Thread(target=thread_target)
+        play_thread.daemon = True
+        play_thread.start()
         
     @classmethod
-    def from_file(cls, filename, sr=48000, orig_sr=None):
+    def from_file(cls, filename, sr=48000, orig_sr=None,chunk_size=1024):
         """ Loads an audiofile, uses sr=22050 by default. """
         orig_data, sr = librosa.load(filename, sr=orig_sr)
 
         if orig_sr and orig_sr != sr:
-            orig_data = librosa.core.resample(orig_data, orig_sr, sr)
+            orig_data = librosa.core.resample(orig_data, orig_sr, sr, chunk_size)
             
         #y = t#librosa.effects.pitch_shift(t, 48000, -5, 24)
         return cls(orig_data, sr)
 
-    def set_morphing(self,pitch,speed):
-        orig_index = self.orig_index
-        proc_data = self.orig_data[orig_index:]
-        if speed and speed != 1:
-            if speed < 0.1: # assume the entire song won't be played while at a really low speed
-                proc_data = librosa.effects.time_stretch(orig_data[:int(self.sr * 240 * speed)], speed)
-            else:
-                proc_data = librosa.effects.time_stretch(orig_data, speed)
-            
-        if pitch and pitch != 0:
-            proc_data = librosa.effects.pitch_shift(t, 48000, pitch)
-
-        orig_index_change = self.orig_index - orig_index
-        self.proc_data = proc_data[orig_index_change:]
-        
-        if orig_index_change:
-            print('this is maybe useful!')
-
     def next_chunk(self):
-        self.orig_index += int(self.chunk_size * self.speed)
-        chunk = self.proc_data[:self.chunk_size]
-        self.proc_data = self.proc_data[self.chunk_size:]
+        #self.orig_index += int(self.chunk_size * self.speed)
+        chunk = self._time_stretcher(self.speed)#self.proc_data[:self.chunk_size]
+
+        if not self.pitch_processed:
+            chunk = self.fallback_pitch_shifter(chunk)
+            
+        return chunk
+
+    def fallback_pitch_shifter(self, chunk, shift):
+            """ Pitch-Shift the given chunk by shift semi-tones. """
+            freq = numpy.fft.rfft(chunk)
+
+            N = len(freq)
+            shifted_freq = numpy.zeros(N, freq.dtype)
+
+            S = numpy.round(shift if shift > 0 else N + shift, 0)
+            s = N - S
+
+            shifted_freq[:S] = freq[s:]
+            shifted_freq[S:] = freq[:s]
+
+            shifted_chunk = numpy.fft.irfft(shifted_freq)
+
+            return shifted_chunk.astype(chunk.dtype)
+
+
+    def _time_stretcher(self, speed):
+        """ Real time time-scale without pitch modification.
+
+            :param int i: index of the beginning of the chunk to stretch
+            :param float speed: audio scale factor (if > 1 speed up the sound else slow it down)
+
+            .. warning:: This method needs to store the phase computed from the previous chunk. Thus, it can only be called chunk by chunk.
+
+        """
+        #print('_time_stretcher')
+        #self.orig_data = self.orig_data[self.orig_index + max(0,self.orig_index-self.chunk_size):]
+            
+        #self.proc_index = 0
+        #self.proc_data = self.proc_data[self.chunk_size:]
+        
+        #self.orig_index = 0
+
+        if self.pitch_processed:
+            used_data = self.orig_data
+            i1 = self.orig_index
+        else:
+            self.used_data = self.proc_data
+            i1 = self.proc_index
+            
+    
+        end = min(self.i1 + self.chunk_size, len(self.used_data) - self.chunk_size + self.jkl)
+                               
+        if start >= end:
+            raise StopIteration
+
+        # The not so clean code below basically implements a phase vocoder
+        out = numpy.zeros(self.chunk_size, dtype=numpy.complex)
+        
+        while self.proc_index < end:    
+            if (self.chunk_size + self.jkl)/max(self.speed,1) > used_data.size:
+                print('CUTOUT')
+                return numpy.array([],'float32') 
+            
+            a, b = i1, i1+self.chunk_size
+            #print(self._win.size,a,b)
+            S1 = numpy.fft.fft(self._window * used_data[a: b])
+            S2 = numpy.fft.fft(self._window * used_data[a + self.jkl: b + self.jkl])
+
+            self._angle += (numpy.angle(S2) - numpy.angle(S1))
+            self._angle = self._angle - 2.0 * numpy.pi * numpy.round(self._angle / (2.0 * numpy.pi))
+
+            out.real, out.imag = numpy.cos(self._angle), numpy.sin(self._angle)
+            self.proc_data[i2: i2 + self.chunk_size] += self._window * numpy.fft.ifft(numpy.abs(S2) * out).real
+
+            i1 += int(self.jkl * self._real_speed)
+            #self.i2 += int(self.jkl * speed)
+            i2 += self.jkl
+
+        self.orig_index += int(self.chunk_size * speed)
+        if self.pitch_processed:
+            return self.proc_data[start:end]
+        else:
+            return self.orig_data[start:end]
+            #make use orig if not modifying
         return chunk
     
     # Chunk iterator
@@ -84,15 +194,41 @@ class Sound(object):
     @pitch.setter
     def pitch(self,value):
         self._pitch = value
-        self_morphing(self.pitch,self.speed)
-
+        
+        orig_index = self.orig_index
+        pitch_data = self.orig_data[orig_index:]
+        
+        if self.pitch == 1:
+            pitch_data = self.orig_data[self.orig_index:]
+        else:
+            t1 = time.time()
+            pitch_data = librosa.core.resample(self.orig_data[self.orig_index:],self.sr,self.sr / self.pitch)  #librosa.effects.pitch_shift(pitch_data, 48000, pitch)
+            print('pitch time',time.time()-t1)
+    
+        orig_index_change = self.orig_index - orig_index
+        self.pitch_data = pitch_data[int(orig_index_change):]
+        self.pitch_index = 0
+        self._real_speed = self.speed / self.pitch
+        
+        if orig_index_change:
+            print('this is maybe useful!')
+        
     @property
     def speed(self):
         return self._speed
 
-    @stretch_factor.setter
+    @speed.setter
     def speed(self, value):
         self._speed = value
-        self_morphing(self.pitch,self.speed)
+        self._real_speed = self.speed / self.pitch
+        self._zero_padding()
+        #self.set_morphing(self.pitch,value)
 
+ws = WavSound.from_file("C:\\Users\\Trevor\\Documents\\aupyom\\aupyom\\example_data\\Tom's Dinner.wav")
+ws.play_self()
+time.sleep(2.7)
+print('morph')
+for i in range(7):
+    time.sleep(0.15)
+    ws.pitch -= 0.1
     

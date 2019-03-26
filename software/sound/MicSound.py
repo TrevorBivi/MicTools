@@ -76,10 +76,10 @@ class MicSound(ChunkPlayer):
         old_val = self._playing
         self._playing = value
         if not old_val and value:
-            self.start_playing()
+            self.play_self()
         
 
-    def start_playing(self):
+    def play_self(self):
         self._init_stretching()
         def thread_target():
             streams = []
@@ -95,9 +95,9 @@ class MicSound(ChunkPlayer):
                 [s.__exit__() for s in streams]
                 raise err
 
-        self.play_thread = Thread(target=thread_target)
-        self.play_thread.daemon = True
-        self.play_thread.start()
+        play_thread = Thread(target=thread_target)
+        play_thread.daemon = True
+        play_thread.start()
             
     def pitch_shifter(self, chunk, shift):
         """ Pitch-Shift the given chunk by shift semi-tones. """
