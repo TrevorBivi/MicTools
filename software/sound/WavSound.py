@@ -2,9 +2,42 @@ from __future__ import division
 
 import numpy
 import librosa
+from multiprocessing import Process
 from threading import Condition, Event, Thread
 import time
 from sounddevice import OutputStream
+
+import sys
+sys.path.append('../other/')
+
+from ThreadWithExc import ThreadWithExc, _async_raise
+
+#from './ThreadWithExec.py' import ThreadWithExec
+
+class EndResampleThread(Exception):
+    pass
+
+def resample_proc(self):
+    orig_index = self.orig_index
+    pitch_data = self.orig_data[orig_index:]
+    
+    if self.pitch == 1:
+        pitch_data = self.orig_data[self.orig_index:]
+    else:
+        t1 = time.time()
+        pitch_data = librosa.core.resample(self.orig_data[self.orig_index:],self.sr,self.sr / self._pitch)  #librosa.effects.pitch_shift(pitch_data, 48000, pitch)
+        print('pitch time',time.time()-t1)
+
+    self._resample_thread = None
+    orig_index_change = self.orig_index - orig_index
+    self.pitch_data = pitch_data[int(orig_index_change):]
+    self.pitch_index = 0
+    self._resampled_speed = self.speed / self.pitch
+    print('CREATED RESAMPLED PITCH')
+    
+    if orig_index_change:
+        print('this is maybe useful!')
+
 
 class WavSound(object):
     """ Sound object which can be read chunk by chunk. """
@@ -33,8 +66,13 @@ class WavSound(object):
         self._playing = True
 
         #the actual speed for the phase vocoder to playback audio at after adjusting for resampling to increase pitch
-        #If None then program is using a fallback real time pitch adjustment 
+        #If None then program is using a fallback real time pitch adjustment using orig_data
+        #A thread automatically generates the artifactless resampled pitch_data when the pitch is changed        
         self._resampled_speed = None
+        self._resample_proc = None
+
+        self.proc_index = 0
+        self.orig_index = 0
         
         self._pitch = 1.0
         self._speed = 1.0 # desired speed by user
@@ -43,8 +81,7 @@ class WavSound(object):
 
     def _init_stretching(self):
         self.orig_index = 0
-        self.pitch_index = 0
-        self.proc_index = 0
+        self.played_count = 0
         
         self._window = numpy.hanning(self.chunk_size)
         self._angle = numpy.zeros(self.chunk_size, dtype=self.orig_data.dtype)
@@ -91,11 +128,11 @@ class WavSound(object):
 
     def next_chunk(self):
         #self.orig_index += int(self.chunk_size * self.speed)
-        chunk = self._time_stretcher(self.speed)#self.proc_data[:self.chunk_size]
-
-        if not self.pitch_processed:
-            chunk = self.fallback_pitch_shifter(chunk)
-            
+        chunk = self._time_stretcher()#self.proc_data[:self.chunk_size]
+        if self._resampled_speed == None:
+            print('live pitch mod')
+            chunk = self.fallback_pitch_shifter(chunk,int(self.speed * 10))
+        else: print('_time stretcher modified resampled data')
         return chunk
 
     def fallback_pitch_shifter(self, chunk, shift):
@@ -116,7 +153,7 @@ class WavSound(object):
             return shifted_chunk.astype(chunk.dtype)
 
 
-    def _time_stretcher(self, speed):
+    def _time_stretcher(self):
         """ Real time time-scale without pitch modification.
 
             :param int i: index of the beginning of the chunk to stretch
@@ -133,15 +170,19 @@ class WavSound(object):
         
         #self.orig_index = 0
 
-        if self.pitch_processed:
+        if self._resampled_speed:
+            used_data = self.pitch_data
+            i1 = 0
+            i2 = 0
+            speed = self._resampled_speed
+        else:
             used_data = self.orig_data
             i1 = self.orig_index
-        else:
-            self.used_data = self.proc_data
-            i1 = self.proc_index
-            
-    
-        end = min(self.i1 + self.chunk_size, len(self.used_data) - self.chunk_size + self.jkl)
+            i2 = self.proc_index
+            speed = self.speed
+        
+        start = i1
+        end = min(i1 + self.chunk_size, len(used_data) - self.chunk_size + self.jkl)
                                
         if start >= end:
             raise StopIteration
@@ -165,12 +206,12 @@ class WavSound(object):
             out.real, out.imag = numpy.cos(self._angle), numpy.sin(self._angle)
             self.proc_data[i2: i2 + self.chunk_size] += self._window * numpy.fft.ifft(numpy.abs(S2) * out).real
 
-            i1 += int(self.jkl * self._real_speed)
+            self.orig_index += int(self.jkl * speed)
             #self.i2 += int(self.jkl * speed)
-            i2 += self.jkl
+            self.proc_index += self.jkl
 
-        self.orig_index += int(self.chunk_size * speed)
-        if self.pitch_processed:
+        #self.orig_index += int(self.chunk_size * speed)
+        if self._resampled_speed:
             return self.proc_data[start:end]
         else:
             return self.orig_data[start:end]
@@ -194,24 +235,15 @@ class WavSound(object):
     @pitch.setter
     def pitch(self,value):
         self._pitch = value
-        
-        orig_index = self.orig_index
-        pitch_data = self.orig_data[orig_index:]
-        
-        if self.pitch == 1:
-            pitch_data = self.orig_data[self.orig_index:]
-        else:
-            t1 = time.time()
-            pitch_data = librosa.core.resample(self.orig_data[self.orig_index:],self.sr,self.sr / self.pitch)  #librosa.effects.pitch_shift(pitch_data, 48000, pitch)
-            print('pitch time',time.time()-t1)
+
+        if self._resample_proc and self._resample_proc.is_alive():
+            print('end resample_thread')
+            self._resample_proc.terminate()
+            #_async_raise(self._resample_thread._get_my_tid(), EndResampleThread())
+        self._resample_proc = Process(target=resample_proc,args=(self,))
+        self._resample_proc.daemon = True
+        self._resample_proc.start()
     
-        orig_index_change = self.orig_index - orig_index
-        self.pitch_data = pitch_data[int(orig_index_change):]
-        self.pitch_index = 0
-        self._real_speed = self.speed / self.pitch
-        
-        if orig_index_change:
-            print('this is maybe useful!')
         
     @property
     def speed(self):
@@ -226,9 +258,9 @@ class WavSound(object):
 
 ws = WavSound.from_file("C:\\Users\\Trevor\\Documents\\aupyom\\aupyom\\example_data\\Tom's Dinner.wav")
 ws.play_self()
-time.sleep(2.7)
+time.sleep(1)
 print('morph')
-for i in range(7):
-    time.sleep(0.15)
+for i in range(1):
+    time.sleep(0.07)
     ws.pitch -= 0.1
     
