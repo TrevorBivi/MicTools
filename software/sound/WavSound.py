@@ -2,7 +2,7 @@ from __future__ import division
 
 import numpy
 import librosa
-from multiprocessing import Process
+from multiprocessing import Process, Pipe
 from threading import Condition, Event, Thread
 import time
 from sounddevice import OutputStream
@@ -17,7 +17,16 @@ from ThreadWithExc import ThreadWithExc, _async_raise
 class EndResampleThread(Exception):
     pass
 
-def resample_proc(self):
+def resample_proc(orig_data,sr,pitch,pipe_end):
+    t1.time()
+    pitch_data = librosa.core.resample(self.orig_data[self.orig_index:], sr, sr / pitch)  #librosa.effects.pitch_shift(pitch_data, 48000, pitch)
+    pipe_end.put(pitch_data)
+    pipe_end.close()
+    print('pitch time',time.time()-t1)
+    
+    
+    
+def temp():
     orig_index = self.orig_index
     pitch_data = self.orig_data[orig_index:]
     
@@ -25,7 +34,7 @@ def resample_proc(self):
         pitch_data = self.orig_data[self.orig_index:]
     else:
         t1 = time.time()
-        pitch_data = librosa.core.resample(self.orig_data[self.orig_index:],self.sr,self.sr / self._pitch)  #librosa.effects.pitch_shift(pitch_data, 48000, pitch)
+        pitch_data = librosa.core.resample(self.orig_data[self.orig_index:], sr, sr / pitch)  #librosa.effects.pitch_shift(pitch_data, 48000, pitch)
         print('pitch time',time.time()-t1)
 
     self._resample_thread = None
@@ -70,10 +79,10 @@ class WavSound(object):
         #A thread automatically generates the artifactless resampled pitch_data when the pitch is changed        
         self._resampled_speed = None
         self._resample_proc = None
+        self._parent_pipe = None
 
         self.proc_index = 0
         self.orig_index = 0
-        
         self._pitch = 1.0
         self._speed = 1.0 # desired speed by user
         self.vol = 100
@@ -132,6 +141,11 @@ class WavSound(object):
         if self._resampled_speed == None:
             print('live pitch mod')
             chunk = self.fallback_pitch_shifter(chunk,int(self.speed * 10))
+        elif self._resampled_proc and not self._resampled_proc.is_alive():
+            self._resample_proc.close()
+            self._resampled_proc = None
+            self.proc_data = self._parent_pipe.recv()[len(self.orig_data)-self.orig_index:]
+            
         else: print('_time stretcher modified resampled data')
         return chunk
 
@@ -239,8 +253,10 @@ class WavSound(object):
         if self._resample_proc and self._resample_proc.is_alive():
             print('end resample_thread')
             self._resample_proc.terminate()
-            #_async_raise(self._resample_thread._get_my_tid(), EndResampleThread())
-        self._resample_proc = Process(target=resample_proc,args=(self,))
+        
+        #_async_raise(self._resample_thread._get_my_tid(), EndResampleThread())
+        self._parent_pipe,child_pipe = Pipe()
+        self._resample_proc = Process(target=resample_proc,args=(self.orig_data[self.orig_index:],self.sr,self.pitch,child_pipe))
         self._resample_proc.daemon = True
         self._resample_proc.start()
     
@@ -258,7 +274,7 @@ class WavSound(object):
 
 ws = WavSound.from_file("C:\\Users\\Trevor\\Documents\\aupyom\\aupyom\\example_data\\Tom's Dinner.wav")
 ws.play_self()
-time.sleep(1)
+time.sleep(0.5)
 print('morph')
 for i in range(1):
     time.sleep(0.07)
