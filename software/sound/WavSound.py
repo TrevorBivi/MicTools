@@ -17,12 +17,17 @@ from ThreadWithExc import ThreadWithExc, _async_raise
 class EndResampleThread(Exception):
     pass
 
-def resample_proc(orig_data,sr,pitch,pipe_end):
-    t1.time()
-    pitch_data = librosa.core.resample(self.orig_data[self.orig_index:], sr, sr / pitch)  #librosa.effects.pitch_shift(pitch_data, 48000, pitch)
-    pipe_end.put(pitch_data)
-    pipe_end.close()
-    print('pitch time',time.time()-t1)
+def resample_func(orig_data,sr,pitch,pipe_end):
+    #t1.time()
+    try:
+        pitch_data = librosa.core.resample(self.orig_data[self.orig_index:], sr, sr / pitch)  #librosa.effects.pitch_shift(pitch_data, 48000, pitch)
+        pipe_end.put('rsmp func ret')#pitch_data)
+        pipe_end.close()
+    except Exception as err:
+        pipe_end.put('except' + str(err))
+        #pipe_end.put('fail rsmp func')
+        pipe_end.close()
+    #print('pitch time',time.time()-t1)
     
     
     
@@ -138,15 +143,35 @@ class WavSound(object):
     def next_chunk(self):
         #self.orig_index += int(self.chunk_size * self.speed)
         chunk = self._time_stretcher()#self.proc_data[:self.chunk_size]
-        if self._resampled_speed == None:
-            print('live pitch mod')
-            chunk = self.fallback_pitch_shifter(chunk,int(self.speed * 10))
-        elif self._resampled_proc and not self._resampled_proc.is_alive():
-            self._resample_proc.close()
-            self._resampled_proc = None
+        #tmp = self._resample_proc.is_alive() if self._resample_proc else 1
+        #print('next_chunk() rsmp proc: ' + str(self._resample_proc) + ' is alive | 1: ' + str(tmp) + ' ' + str(type(tmp)) + 'rsmp spd:' + str(self._resampled_speed) + ' pid:' + (str(self._resample_proc.pid) if self._resample_proc else 'dne'))
+
+        '''if self._resample_proc and not tmp and self._parent_pipe:
+            self._resample_proc = None
             self.proc_data = self._parent_pipe.recv()[len(self.orig_data)-self.orig_index:]
-            
-        else: print('_time stretcher modified resampled data')
+            self._parent_pipe.close()
+        elif self._resampled_speed == None:
+            print('live pitch mod')'''
+
+        if self._resample_proc:
+            print('PROC - is_alive:' + str(self._resample_proc.is_alive()) + '  pid:' + str(self._resample_proc.pid)) 
+
+        if self._resample_proc and not self._resample_proc.is_alive() and self._resample_proc.pid: #if proc exists and proc not alive and has pid meaning was alive
+            print('GETTING PROC DATA')
+            self._resample_proc = None
+            self.proc_data = self._parent_pipe.recv()[len(self.orig_data) - self.orig_index:]
+            self._parent_pipe.close()
+        elif self._resample_proc:
+            chunk = self.fallback_pitch_shifter(chunk,int(self.speed * 10))
+
+        '''elif self._resample_proc:
+            print('proc created')
+            if not self._resample_proc.is_alive():
+                #self._resample_proc.close()
+                print('PROCED PITCH MOD')
+           '''     
+                
+        ##else: print('_time stretcher modified resampled data')
         return chunk
 
     def fallback_pitch_shifter(self, chunk, shift):
@@ -253,12 +278,14 @@ class WavSound(object):
         if self._resample_proc and self._resample_proc.is_alive():
             print('end resample_thread')
             self._resample_proc.terminate()
-        
         #_async_raise(self._resample_thread._get_my_tid(), EndResampleThread())
         self._parent_pipe,child_pipe = Pipe()
-        self._resample_proc = Process(target=resample_proc,args=(self.orig_data[self.orig_index:],self.sr,self.pitch,child_pipe))
-        self._resample_proc.daemon = True
+        self._resample_proc = Process(target=resample_func,args=(self.orig_data[self.orig_index:],self.sr,self.pitch,child_pipe))
+        #self._resample_proc.daemon = True
         self._resample_proc.start()
+        #print('pitch() ' + 'rsmp proc: ' + str(self._resample_proc) + ' rsmp speed: ' + str(self._resampled_speed))
+        self._resampled_speed = None
+
     
         
     @property
@@ -271,12 +298,14 @@ class WavSound(object):
         self._real_speed = self.speed / self.pitch
         self._zero_padding()
         #self.set_morphing(self.pitch,value)
-
-ws = WavSound.from_file("C:\\Users\\Trevor\\Documents\\aupyom\\aupyom\\example_data\\Tom's Dinner.wav")
-ws.play_self()
-time.sleep(0.5)
-print('morph')
-for i in range(1):
-    time.sleep(0.07)
-    ws.pitch -= 0.1
+        
+if __name__ == '__main__':
+    ws = WavSound.from_file("C:\\Users\\Trevor\\Documents\\aupyom\\aupyom\\example_data\\Tom's Dinner.wav")
+    ws.play_self()
+    time.sleep(0.5)
+    print('morph')
+    for i in range(1):
+        time.sleep(0.07)
+        ws.pitch -= 0.1
+else: print(__name__,'WEWEW')
     
