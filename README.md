@@ -1,5 +1,5 @@
 # About
-A program to control to enhancing microphone audio with an IR remote controller.
+A program to control microphone audio mixing with an IR remote controller.
 
 ## Features
   - mix in songs and soundboards with the audio coming from your microphone.
@@ -9,5 +9,5 @@ A program to control to enhancing microphone audio with an IR remote controller.
   - Intelligent side tone (user can hear audio being outputed unless they are just outputting their own mic without any special effects applied)
 
 The program is controlled using a IR controller shown below. This is achevied using an arduino device that detects button presses and forwards the information on to the user's main computer using USB serial.
-![alt text](https://github.com/TrevorBivi/MicTools/raw/master/images/IR_controller.jpg)
+![alt text](https://github.com/TrevorBivi/MicTools/raw/master/images/IR_remote.jpg)
 *An image of the controller.*
