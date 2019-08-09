@@ -1,0 +1,1 @@
+class MemReadError(Exception): pass

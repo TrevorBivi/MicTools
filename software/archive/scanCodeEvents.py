@@ -46,7 +46,7 @@ KEYEVENTF_SCANCODE = 0x0008
 
 def key_input(code,flags):
     kbinp = KEYBDINPUT(code, code, flags, 0,None)
-    #print('cd',code,'fg',flags)
+    print('cd',code,'fg',flags)
     inp = INPUT(
         INPUT_KEYBOARD,
         _INPUTunion(ki = kbinp)
@@ -66,5 +66,5 @@ def key_press(scan_code,press_time=0.01,extra_flags=KEYEVENTF_SCANCODE):
     time.sleep(press_time)
     key_up(scan_code,extra_flags)
 
-time.sleep(4);key_press(0x51)
+#time.sleep(4);key_press(0x49)
 

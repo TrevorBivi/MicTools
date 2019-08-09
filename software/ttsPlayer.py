@@ -5,7 +5,7 @@ si = subprocess.STARTUPINFO()
 si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
 class Balcon(object):
-    def __init__(self, path='..\\balcon\\balcon.exe', volume=100, speed=5, device=None):
+    def __init__(self, path='C:\\Program Files (Other)\\balcon\\balcon.exe', volume=100, speed=5, device=None):
         self.path = path
         self.volume = volume
         self.speed = speed
@@ -24,9 +24,9 @@ class Balcon(object):
     def threadless_say(self,text,cutoff=False):
         subprocess.call( self.gen_cmd(text,cutoff), startupinfo=si )
 
-    def say(self,text,cutoff=False):
+    def say(self,text,cutoff=True):
         def thread_target():
-            threadless_say(text,cutoff)
+            self.threadless_say(text,cutoff)
             self.is_running = False
         self.is_running = True
         thread = threading.Thread(target=thread_target)
